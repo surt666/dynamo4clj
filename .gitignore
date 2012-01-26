@@ -1,4 +1,5 @@
 pom.xml
+aws.properties
 *jar
 /lib/
 /classes/
