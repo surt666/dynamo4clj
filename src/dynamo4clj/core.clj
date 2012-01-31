@@ -42,7 +42,7 @@
 (defn insert-item [table item]
   "Insert item (map) in table"
   (let [req (doto (PutItemRequest.) (.withTableName table) (.withItem (fmap to-attr-value (stringify-keys item))))]      
-    (doto client (.putItem req))))
+    (. client (putItem req))))
 
 (defn find-items [table key & range]
   "Find items with key and optional range"
