@@ -3,7 +3,7 @@
         [clojure.walk :only (stringify-keys keywordize-keys)])
   (:import [com.amazonaws.auth AWSCredentials PropertiesCredentials]
            [com.amazonaws.services.dynamodb AmazonDynamoDBClient]
-           [com.amazonaws.services.dynamodb.model AttributeValue AttributeValueUpdate AttributeAction PutItemRequest QueryRequest Key GetItemRequest DeleteItemRequest ScanRequest UpdateItemRequest ReturnValue]
+           [com.amazonaws.services.dynamodb.model AttributeValue AttributeValueUpdate AttributeAction PutItemRequest QueryRequest Key GetItemRequest DeleteItemRequest ScanRequest UpdateItemRequest ReturnValue Condition ComparisonOperator]
            [com.amazonaws AmazonServiceException ClientConfiguration Protocol]
            [java.util HashMap]))
 
@@ -44,9 +44,14 @@
   (let [req (doto (PutItemRequest.) (.withTableName table) (.withItem (fmap to-attr-value (stringify-keys item))))]      
     (. client (putItem req))))
 
-(defn find-items [table key & range]
+(defn find-items [table key consistent & range]
   "Find items with key and optional range"
-  (let [req (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)))]
+  (let [[operator param1 param2] (first range)
+        condition (cond
+                   (= operator "between") (doto (Condition.) (.withComparisonOperator ComparisonOperator/BETWEEN) (.withAttributeValueList (vector (to-attr-value param1) (to-attr-value param2)))))       
+        req (cond
+             (nil? operator) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withConsistentRead consistent))
+             (not (nil? operator)) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withRangeKeyCondition condition) (.withConsistentRead consistent)))]
     (map #(to-map %) (.getItems (. client (query req))))))
 
 (defn update-item [table key attr]
