@@ -39,13 +39,25 @@
   (if item
     (fmap get-value (into {} item))))
 
+(defn get-item [table hash-key]
+  "Retrieve an item from a table by its hash key."
+  (to-map
+   (.getItem
+    (. client (getItem (doto (GetItemRequest.) (.withTableName table)
+                             (.withKey (Key. (to-attr-value hash-key)))))))))
+
+(defn delete-item [table hash-key]
+  "Delete an item from a table by its hash key."  
+  (. client (deleteItem (DeleteItemRequest. table (item-key hash-key)))))
+
+
 (defn insert-item [table item]
   "Insert item (map) in table"
   (let [req (doto (PutItemRequest.) (.withTableName table) (.withItem (fmap to-attr-value (stringify-keys item))))]      
     (. client (putItem req))))
 
 (defn find-items [table key consistent & range]
-  "Find items with key and optional range"
+  "Find items with key and optional range. Range has the form [operator param1 param2] or [operator param1]"
   (let [[operator param1 param2] (first range)
         condition (cond
                    (= operator "between") (doto (Condition.) (.withComparisonOperator ComparisonOperator/BETWEEN) (.withAttributeValueList (vector (to-attr-value param1) (to-attr-value param2))))
