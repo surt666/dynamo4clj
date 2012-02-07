@@ -1,13 +1,33 @@
 # dynamo4clj
 
-FIXME: write description
+Clojure API for Amazon DynamoDB
 
 ## Usage
 
-FIXME: write
+Put a file called aws.properties in src (or somewhere else where it ends up in the root of the classpath) with your aws keys
+
+(get-item "seq" "events_seq")
+
+(delete-item "seq" "events_seq")
+
+(update-item "seq" "login_count" {:value [1 "add"]})
+
+(scan "events")
+
+(scan "events" [["author" "eq" "steen"]])
+
+(find-items "events" "NORMAL")
+
+(find-items "events" "NORMAL" ["between" 715 815])
+
+range and conditions support
+
+between,contains,eq,ge,gt,le,lt,ne,not-contains,not-null,null
+
+in doesn't work right now
 
 ## License
 
-Copyright (C) 2012 FIXME
+Copyright (C) 2012 
 
 Distributed under the Eclipse Public License, the same as Clojure.
