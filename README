@@ -6,19 +6,19 @@ Clojure API for Amazon DynamoDB
 
 Put a file called aws.properties in src (or somewhere else where it ends up in the root of the classpath) with your aws keys
 
-(get-item "seq" "events_seq")
+    (get-item "seq" "events_seq")
 
-(delete-item "seq" "events_seq")
+    (delete-item "seq" "events_seq")
 
-(update-item "seq" "login_count" {:value [1 "add"]})
+    (update-item "seq" "login_count" {:value [1 "add"]})
 
-(scan "events")
+    (scan "events")
 
-(scan "events" [["author" "eq" "steen"]])
+    (scan "events" [["author" "eq" "steen"]])
 
-(find-items "events" "NORMAL")
+    (find-items "events" "NORMAL")   
 
-(find-items "events" "NORMAL" ["between" 715 815])
+    (find-items "events" "NORMAL" ["between" 715 815])
 
 range and conditions support
 
