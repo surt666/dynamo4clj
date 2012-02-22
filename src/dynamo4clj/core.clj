@@ -10,8 +10,10 @@
 (defn get-client []
   (let [creds (PropertiesCredentials. (.getResourceAsStream (clojure.lang.RT/baseLoader) "aws.properties"))
         config (ClientConfiguration.)]
-    (. config (setProtocol Protocol/HTTP))
+    (. config (setProtocol Protocol/HTTPS))
     (. config (setMaxErrorRetry 3))
+    (. config (setProxyHost "sltarray02"))
+    (. config (setProxyPort 8080))
     (AmazonDynamoDBClient. creds config)))
 
 (def client (get-client))
@@ -41,14 +43,15 @@
 
 (defn get-item [table hash-key]
   "Retrieve an item from a table by its hash key."
-  (to-map
-   (.getItem
-    (. client (getItem (doto (GetItemRequest.) (.withTableName table)
-                             (.withKey (Key. (to-attr-value hash-key)))))))))
+  (keywordize-keys 
+    (to-map
+      (.getItem
+        (. client (getItem (doto (GetItemRequest.) (.withTableName table)
+                             (.withKey (Key. (to-attr-value hash-key))))))))))
 
 (defn delete-item [table hash-key]
   "Delete an item from a table by its hash key."  
-  (. client (deleteItem (DeleteItemRequest. table (item-key hash-key)))))
+  (. client (deleteItem (DeleteItemRequest. table (Key. (to-attr-value hash-key))))))
 
 
 (defn insert-item [table item]
@@ -87,7 +90,7 @@
         req (cond
              (empty? range) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withConsistentRead consistent))
              (not (empty? range)) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withRangeKeyCondition condition) (.withConsistentRead consistent)))]
-    (map to-map (.getItems (. client (query req))))))
+    (keywordize-keys (map to-map (.getItems (. client (query req)))))))
 
 (defn scan [table & conditions]
   "Return the items in a DynamoDB table. Conditions is vector of tuples like [field operator param1 param2] or [field operator param1]"
@@ -98,4 +101,4 @@
     (let [req (cond
                 (empty? conds) (doto (ScanRequest.) (.withTableName table))
                 (not (empty? conds)) (doto (ScanRequest.) (.withTableName table) (.withScanFilter conds)))]
-      (map to-map (.getItems (. client (scan req)))))))
+      (keywordize-keys (map to-map (.getItems (. client (scan req))))))))
