@@ -7,6 +7,11 @@
            [com.amazonaws AmazonServiceException ClientConfiguration Protocol]
            [java.util HashMap]))
 
+(defn- item-key
+  "Create a Key object from a value."
+  [hash-key]
+  (Key. (to-attr-value hash-key)))
+
 (defn get-client []
   (let [creds (PropertiesCredentials. (.getResourceAsStream (clojure.lang.RT/baseLoader) "aws.properties"))
         config (ClientConfiguration.)]
