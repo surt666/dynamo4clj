@@ -7,16 +7,20 @@
            [com.amazonaws AmazonServiceException ClientConfiguration Protocol]
            [java.util HashMap]))
 
-(defn get-client []
+(defn- item-key
+  "Create a Key object from a value."
+  [hash-key]
+  (Key. (to-attr-value hash-key)))
+
+(defn get-client [region]
   (let [creds (PropertiesCredentials. (.getResourceAsStream (clojure.lang.RT/baseLoader) "aws.properties"))
         config (ClientConfiguration.)]
     (. config (setProtocol Protocol/HTTPS))
     (. config (setMaxErrorRetry 3))
     (. config (setProxyHost "sltarray02"))
     (. config (setProxyPort 8080))
-    (AmazonDynamoDBClient. creds config)))
-
-(def client (get-client))
+    (doto  (AmazonDynamoDBClient creds config)  (.setEndpoint region))))
+(def client (get-client "dynamodb.eu-west-1.amazonaws.com" ))
 
 (defn- to-attr-value [value]
   "Convert a value into an AttributeValue object."
@@ -55,7 +59,7 @@
 
 
 (defn insert-item [table item]
-  "Insert item (map) in table"
+  "Insert item (mmodb.eu-west-1.amazonaws.comap) in table"
   (let [req (doto (PutItemRequest.) (.withTableName table) (.withItem (fmap to-attr-value (stringify-keys item))))]      
     (. client (putItem req))))
 
