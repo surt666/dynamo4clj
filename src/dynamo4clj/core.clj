@@ -7,11 +7,6 @@
            [com.amazonaws AmazonServiceException ClientConfiguration Protocol]
            [java.util HashMap]))
 
-(defn- item-key
-  "Create a Key object from a value."
-  [hash-key]
-  (Key. (to-attr-value hash-key)))
-
 (defn get-client [region]
   (let [creds (PropertiesCredentials. (.getResourceAsStream (clojure.lang.RT/baseLoader) "aws.properties"))
         config (ClientConfiguration.)]
@@ -19,7 +14,8 @@
     (. config (setMaxErrorRetry 3))
     (. config (setProxyHost "sltarray02"))
     (. config (setProxyPort 8080))
-    (doto  (AmazonDynamoDBClient creds config)  (.setEndpoint region))))
+    (doto  (AmazonDynamoDBClient. creds config)  (.setEndpoint region))))
+
 (def client (get-client "dynamodb.eu-west-1.amazonaws.com" ))
 
 (defn- to-attr-value [value]
@@ -31,7 +27,14 @@
 (defn- to-attr-value-update [value]
   "Convert a value into an AttributeValueUpdate object. Value is a tuple like [1 \"add\"]"
   (cond
-   (= (get value 1) "add") (doto (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0))) (.withAction AttributeAction/ADD))))
+   (= (get value 1) "add") (doto (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0))) (.withAction AttributeAction/ADD))
+   (= (get value 1) "delete") (doto (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0))) (.withAction AttributeAction/DELETE))
+   (= (get value 1) "put") (doto (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0))) (.withAction AttributeAction/PUT))))
+
+(defn- item-key
+  "Create a Key object from a value."
+  [hash-key]
+  (Key. (to-attr-value hash-key)))
 
 (defn- get-value [attr-value]
   "Get the value of an AttributeValue object."
@@ -68,7 +71,8 @@
   "Update item (map) in table with optional attributes"
   (let [key (doto (Key.) (.withHashKeyElement (to-attr-value key)))
         attrupd (fmap to-attr-value-update (stringify-keys attr))
-        req (doto (UpdateItemRequest.) (.withTableName table) (.withKey key) (.withReturnValues ReturnValue/ALL_NEW) (.withAttributeUpdates attrupd))] 
+        req (doto (UpdateItemRequest.) (.withTableName table) (.withKey key) (.withReturnValues ReturnValue/ALL_NEW) (.withAttributeUpdates attrupd))]
+   (prn "DDDDDDDDDDDDD"  attrupd req (bean req)) 
     (keywordize-keys (to-map (.getAttributes (. client (updateItem req)))))))
 
 (defn create-condition [c]
