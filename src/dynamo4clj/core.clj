@@ -5,20 +5,20 @@
            [com.amazonaws.services.dynamodb AmazonDynamoDBClient]
            [com.amazonaws.services.dynamodb.model AttributeValue AttributeValueUpdate AttributeAction PutItemRequest QueryRequest Key GetItemRequest DeleteItemRequest ScanRequest UpdateItemRequest ReturnValue Condition ComparisonOperator]
            [com.amazonaws AmazonServiceException ClientConfiguration Protocol]
-           [java.util HashMap]))
+           [java.util HashMap Properties]))
 
-(defn- item-key [hash-key]
-  "Create a Key object from a value."  
-  (Key. (to-attr-value hash-key)))
-
-(defn get-client [region]
-  (let [creds (PropertiesCredentials. (.getResourceAsStream (clojure.lang.RT/baseLoader) "aws.properties"))
-        config (ClientConfiguration.)]
-    (. config (setProtocol Protocol/HTTP))
+(defn get-client []
+  (let [credstream (.getResourceAsStream (clojure.lang.RT/baseLoader) "aws.properties")
+        configstream (.getResourceAsStream (clojure.lang.RT/baseLoader) "config.properties") 
+        creds (PropertiesCredentials. credstream)
+        config (ClientConfiguration.)
+        props (Properties.)]
+    (. props (load configstream))
+    (. config (setProtocol Protocol/HTTPS))
     (. config (setMaxErrorRetry 3))
-    (. config (setProxyHost "sltarray02"))
-    (. config (setProxyPort 8080))
-    (AmazonDynamoDBClient. creds config) (.setEndpoint region)))
+    (when-not (nil? (. props (getProperty "proxy-host"))) (. config (setProxyHost (. props (getProperty "proxy-host")))))
+    (when-not (nil? (. props (getProperty "proxy-port"))) (. config (setProxyPort (Integer/parseInt (. props (getProperty "proxy-port"))))))
+    (doto (AmazonDynamoDBClient. creds config) (.setEndpoint (. props (getProperty "region"))))))
 
 (def client (get-client))
 
@@ -31,7 +31,13 @@
 (defn- to-attr-value-update [value]
   "Convert a value into an AttributeValueUpdate object. Value is a tuple like [1 \"add\"]"
   (cond
-   (= (get value 1) "add") (doto (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0))) (.withAction AttributeAction/ADD))))
+   (= (get value 1) "add") (doto (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0))) (.withAction AttributeAction/ADD))
+   (= (get value 1) "delete") (doto (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0))) (.withAction AttributeAction/DELETE))
+   (= (get value 1) "put") (doto (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0))) (.withAction AttributeAction/PUT))))
+
+(defn- item-key [hash-key]
+  "Create a Key object from a value."  
+  (Key. (to-attr-value hash-key)))
 
 (defn- get-value [attr-value]
   "Get the value of an AttributeValue object."
@@ -47,10 +53,11 @@
 
 (defn get-item [table hash-key]
   "Retrieve an item from a table by its hash key."
-  (to-map
-   (.getItem
-    (. client (getItem (doto (GetItemRequest.) (.withTableName table)
-                             (.withKey (Key. (to-attr-value hash-key)))))))))
+  (keywordize-keys
+   (to-map
+    (.getItem
+     (. client (getItem (doto (GetItemRequest.) (.withTableName table)
+                              (.withKey (Key. (to-attr-value hash-key))))))))))
 
 (defn delete-item [table hash-key]
   "Delete an item from a table by its hash key."  
@@ -93,7 +100,7 @@
         req (cond
              (empty? range) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withConsistentRead consistent))
              (not (empty? range)) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withRangeKeyCondition condition) (.withConsistentRead consistent)))]
-    (map to-map (.getItems (. client (query req))))))
+    (keywordize-keys (map to-map (.getItems (. client (query req)))))))
 
 (defn scan [table & conditions]
   "Return the items in a DynamoDB table. Conditions is vector of tuples like [field operator param1 param2] or [field operator param1]"
@@ -104,4 +111,4 @@
     (let [req (cond
                 (empty? conds) (doto (ScanRequest.) (.withTableName table))
                 (not (empty? conds)) (doto (ScanRequest.) (.withTableName table) (.withScanFilter conds)))]
-      (map to-map (.getItems (. client (scan req)))))))
+      (keywordize-keys (map to-map (.getItems (. client (scan req))))))))

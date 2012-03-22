@@ -4,7 +4,16 @@ Clojure API for Amazon DynamoDB
 
 ## Usage
 
-Put a file called aws.properties in src (or somewhere else where it ends up in the root of the classpath) with your aws keys
+Put a file called aws.properties in src (or somewhere else where it ends up in the root of the classpath) with your aws keys in the format:
+
+accessKey:blabla
+secretKey:fooooo
+
+Optionally put a config.properties file in src with the following optional parameters
+
+proxy-host=sltarray
+proxy-port=8080
+region="dynamodb.eu-west-1.amazonaws.com"
 
     (get-item "seq" "events_seq")
 
@@ -20,11 +29,11 @@ Put a file called aws.properties in src (or somewhere else where it ends up in t
 
     (find-items "events" "NORMAL" ["between" 715 815])
 
-range and conditions support
+Range and conditions support
 
-between,contains,eq,ge,gt,le,lt,ne,not-contains,not-null,null
+between,contains,eq,ge,gt,le,lt,ne,not-contains,not-null,null,begins-with
 
-in doesn't work right now
+Check the Amazon docs for info on which conditions works for query. All should work for scan.
 
 ## License
 
