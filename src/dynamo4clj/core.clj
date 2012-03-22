@@ -7,17 +7,18 @@
            [com.amazonaws AmazonServiceException ClientConfiguration Protocol]
            [java.util HashMap]))
 
-(defn- item-key
-  "Create a Key object from a value."
-  [hash-key]
+(defn- item-key [hash-key]
+  "Create a Key object from a value."  
   (Key. (to-attr-value hash-key)))
 
-(defn get-client []
+(defn get-client [region]
   (let [creds (PropertiesCredentials. (.getResourceAsStream (clojure.lang.RT/baseLoader) "aws.properties"))
         config (ClientConfiguration.)]
     (. config (setProtocol Protocol/HTTP))
     (. config (setMaxErrorRetry 3))
-    (AmazonDynamoDBClient. creds config)))
+    (. config (setProxyHost "sltarray02"))
+    (. config (setProxyPort 8080))
+    (AmazonDynamoDBClient. creds config) (.setEndpoint region)))
 
 (def client (get-client))
 
