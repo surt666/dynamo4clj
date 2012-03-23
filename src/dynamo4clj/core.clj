@@ -26,10 +26,12 @@
 
 (defn- to-attr-value-update [value]
   "Convert a value into an AttributeValueUpdate object. Value is a tuple like [1 \"add\"]"
-  (cond
-   (= (get value 1) "add") (doto (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0))) (.withAction AttributeAction/ADD))
-   (= (get value 1) "delete") (doto (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0))) (.withAction AttributeAction/DELETE))
-   (= (get value 1) "put") (doto (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0))) (.withAction AttributeAction/PUT))))
+  (doto  (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0)))
+    (.withAction  
+      (cond
+        (= (get value 1) "add")  AttributeAction/ADD 
+        (= (get value 1) "delete") AttributeAction/DELETE 
+        (= (get value 1) "put") AttributeAction/PUT))))
 
 (defn- item-key
   "Create a Key object from a value."
@@ -72,7 +74,6 @@
   (let [key (doto (Key.) (.withHashKeyElement (to-attr-value key)))
         attrupd (fmap to-attr-value-update (stringify-keys attr))
         req (doto (UpdateItemRequest.) (.withTableName table) (.withKey key) (.withReturnValues ReturnValue/ALL_NEW) (.withAttributeUpdates attrupd))]
-   (prn "DDDDDDDDDDDDD"  attrupd req (bean req)) 
     (keywordize-keys (to-map (.getAttributes (. client (updateItem req)))))))
 
 (defn create-condition [c]
