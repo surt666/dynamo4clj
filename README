@@ -13,7 +13,7 @@ Optionally put a config.properties file in src with the following optional param
 
 proxy-host=sltarray
 proxy-port=8080
-region="dynamodb.eu-west-1.amazonaws.com"
+region=dynamodb.eu-west-1.amazonaws.com
 
     (get-item "seq" "events_seq")
 
