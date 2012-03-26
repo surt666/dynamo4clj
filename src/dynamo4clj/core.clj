@@ -7,6 +7,35 @@
            [com.amazonaws AmazonServiceException ClientConfiguration Protocol]
            [java.util HashMap]))
 
+
+(def ^ {:dynamic true :private true} *dynamo-client* nil)
+
+(defn- with-client*
+    [f]
+    (fn  [&  [maybe-client & rest :as args]]
+          (if  (and  (thread-bound? #'*dynamo-client*)
+                                 (not  (identical? maybe-client *dynamo-client*)))
+                  (apply f *dynamo-client* args)
+                  (apply f *dynamo-client*  rest))))
+
+(defmacro ^ {:private true} defdyn
+  "
+  "
+    [name & body]
+    `(do
+            (defn ~name ~@body)
+            (alter-var-root  (var ~name) with-client*)
+            (alter-meta!  (var ~name) update-in  [:doc] str
+                                "\n\n  When used within the dynamic scope of `with-client`, the initial `client`"
+                                "\n  argument is automatically provided.")))
+
+(defmacro with-client
+  "
+  "
+    [client & body]
+    `(binding  [*dynamo-client* ~client]
+            ~@body))
+
 (defn get-client [region]
   (let [creds (PropertiesCredentials. (.getResourceAsStream (clojure.lang.RT/baseLoader) "aws.properties"))
         config (ClientConfiguration.)]
