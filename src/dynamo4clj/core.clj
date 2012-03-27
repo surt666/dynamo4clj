@@ -8,7 +8,7 @@
            [java.util HashMap]))
 
 
-(def ^ {:dynamic true :private true} *dynamo-client* nil)
+(def  ^AmazonDynamoDBClient ^{:dynamic true :private true} *dynamo-client* nil)
 
 (defn- with-client*
     [f]
@@ -45,7 +45,7 @@
     (. config (setProxyPort 8080))
     (doto  (AmazonDynamoDBClient. creds config)  (.setEndpoint region))))
 
-(def client (get-client "dynamodb.eu-west-1.amazonaws.com" ))
+(def ^AmazonDynamoDBClient client (get-client "dynamodb.eu-west-1.amazonaws.com" ))
 
 (defn- to-attr-value [value]
   "Convert a value into an AttributeValue object."
@@ -67,7 +67,7 @@
   [hash-key]
   (Key. (to-attr-value hash-key)))
 
-(defn- get-value [attr-value]
+(defn- get-value [^AttributeValue attr-value]
   "Get the value of an AttributeValue object."
   (or (.getS attr-value)
       (.getN attr-value)
@@ -108,19 +108,19 @@
 (defn create-condition [c]
   (let [[operator param1 param2] c]
     (cond
-     (= operator "between") (doto (Condition.) (.withComparisonOperator ComparisonOperator/BETWEEN) (.withAttributeValueList (vector (to-attr-value param1) (to-attr-value param2))))
-     (= operator "begins-with") (doto (Condition.) (.withComparisonOperator ComparisonOperator/BEGINS_WITH) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "contains") (doto (Condition.) (.withComparisonOperator ComparisonOperator/CONTAINS) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "eq") (doto (Condition.) (.withComparisonOperator ComparisonOperator/EQ) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "ge") (doto (Condition.) (.withComparisonOperator ComparisonOperator/GE) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "gt") (doto (Condition.) (.withComparisonOperator ComparisonOperator/GT) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "le") (doto (Condition.) (.withComparisonOperator ComparisonOperator/LE) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "lt") (doto (Condition.) (.withComparisonOperator ComparisonOperator/LT) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "ne") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NE) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "not-contains") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NOT_CONTAINS) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "not-null") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NOT_NULL) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "null") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NULL) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "in") (doto (Condition.) (.withComparisonOperator ComparisonOperator/IN) (.withAttributeValueList (vector (to-attr-value param1)))))))
+     (= operator "between") (doto (Condition.) (.withComparisonOperator ComparisonOperator/BETWEEN) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1) (to-attr-value param2))))
+     (= operator "begins-with") (doto (Condition.) (.withComparisonOperator ComparisonOperator/BEGINS_WITH) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "contains") (doto (Condition.) (.withComparisonOperator ComparisonOperator/CONTAINS) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "eq") (doto (Condition.) (.withComparisonOperator ComparisonOperator/EQ) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "ge") (doto (Condition.) (.withComparisonOperator ComparisonOperator/GE) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "gt") (doto (Condition.) (.withComparisonOperator ComparisonOperator/GT) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "le") (doto (Condition.) (.withComparisonOperator ComparisonOperator/LE) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "lt") (doto (Condition.) (.withComparisonOperator ComparisonOperator/LT) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "ne") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NE) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "not-contains") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NOT_CONTAINS) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "not-null") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NOT_NULL) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "null") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NULL) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "in") (doto (Condition.) (.withComparisonOperator ComparisonOperator/IN) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1)))))))
 
 (defn find-items [table key consistent & range]
   "Find items with key and optional range. Range has the form [operator param1 param2] or [operator param1]"
