@@ -7,6 +7,11 @@
            [com.amazonaws AmazonServiceException ClientConfiguration Protocol]
            [java.util HashMap]))
 
+;
+;
+; http://docs.amazonwebservices.com/AWSJavaSDK/latest/javadoc/com/amazonaws/auth/STSSessionCredentialsProvider.html
+;
+;
 
 (def  ^AmazonDynamoDBClient ^{:dynamic true :private true} *dynamo-client* nil)
 
