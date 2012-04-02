@@ -17,6 +17,8 @@ region=dynamodb.eu-west-1.amazonaws.com
 
     (get-item "seq" "events_seq")
 
+    (get-batch-items [["products" [1101001 1101101]] ["prices" [["ys" 1101001] ["kab" 1101201]]]])
+
     (delete-item "seq" "events_seq")
 
     (update-item "seq" "login_count" {:value [1 "add"]})

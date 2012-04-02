@@ -3,7 +3,7 @@
         [clojure.walk :only (stringify-keys keywordize-keys)])
   (:import [com.amazonaws.auth AWSCredentials PropertiesCredentials]
            [com.amazonaws.services.dynamodb AmazonDynamoDBClient]
-           [com.amazonaws.services.dynamodb.model AttributeValue AttributeValueUpdate AttributeAction PutItemRequest QueryRequest Key GetItemRequest DeleteItemRequest ScanRequest UpdateItemRequest ReturnValue Condition ComparisonOperator]
+           [com.amazonaws.services.dynamodb.model AttributeValue AttributeValueUpdate AttributeAction PutItemRequest QueryRequest Key GetItemRequest DeleteItemRequest ScanRequest UpdateItemRequest ReturnValue Condition ComparisonOperator KeysAndAttributes BatchGetItemRequest BatchGetItemResult BatchResponse]
            [com.amazonaws AmazonServiceException ClientConfiguration Protocol]
            [java.util HashMap Properties]))
 
@@ -39,6 +39,10 @@
   "Create a Key object from a value."  
   (Key. (to-attr-value hash-key)))
 
+(defn item-key-range [hash-key range-key]
+  "Create a Key object from a value."  
+  (doto (Key.) (.withHashKeyElement (to-attr-value hash-key)) (.withRangeKeyElement (to-attr-value range-key))))
+
 (defn- get-value [attr-value]
   "Get the value of an AttributeValue object."
   (or (.getS attr-value)
@@ -58,6 +62,28 @@
     (.getItem
      (. client (getItem (doto (GetItemRequest.) (.withTableName table)
                               (.withKey (Key. (to-attr-value hash-key))))))))))
+
+(defn create-keys-and-attributes [keys] 
+  (let [ka (KeysAndAttributes.)]
+    (if (vector? (first keys))
+      (. ka (withKeys (map #(item-key-range (% 0) (% 1)) keys)))
+      (. ka (withKeys (map #(item-key %) keys))))))
+
+(defn- get-request-items [requests]
+  (loop [r requests res {}]
+    (if (empty? r)
+      res
+      (recur (rest r) (assoc res ((first r) 0) (create-keys-and-attributes ((first r) 1)))))))
+
+(defn get-batch-items [requests]
+  "requests is a vector of vectors of the following form [[table1 [hash1 hash3]] [table2 [[hash1 range1] [hash4 range4]]]]"
+  (let [ri (get-request-items requests)
+        batchresult (. client (batchGetItem (doto (BatchGetItemRequest.) (.withRequestItems ri))))
+        tables (map #(first %) requests)]
+    (loop [t tables res {}]
+      (if (empty? t)
+        (keywordize-keys res)
+        (recur (rest t) (assoc res (first t) (vec (map to-map (.getItems (. (. batchresult getResponses) (get (first t))))))))))))
 
 (defn delete-item [table hash-key]
   "Delete an item from a table by its hash key."  
