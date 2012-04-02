@@ -2,7 +2,9 @@
 *.swo
 pom.xml
 aws.properties
+config.properties
 *jar
+*~
 /lib/
 /classes/
 .lein-failures
