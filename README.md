@@ -4,6 +4,7 @@ Clojure API for Amazon DynamoDB
 
 ## Usage
 
+### with config files
 Put a file called aws.properties in src (or somewhere else where it ends up in the root of the classpath) with your aws keys in the format:
 
 accessKey:blabla
@@ -15,21 +16,30 @@ proxy-host=sltarray
 proxy-port=8080
 region=dynamodb.eu-west-1.amazonaws.com
 
-    (get-item "seq" "events_seq")
+    (def client (get-client))
 
-    (get-batch-items [["products" [1101001 1101101]] ["prices" [["ys" 1101001] ["kab" 1101201]]]])
 
-    (delete-item "seq" "events_seq")
+### with config map 
 
-    (update-item "seq" "login_count" {:value [1 "add"]})
+(def client (dyn/get-client {:access-key "foo" :secret-key "bar" :proxy-host "example.com" :proxy-port 8080 :region "dynamodb.eu-west-1.amazonaws.com"}))
 
-    (scan "events")
+### api-calls 
 
-    (scan "events" [["author" "eq" "steen"]])
+    (get-item client "seq" "events_seq")
 
-    (find-items "events" "NORMAL")   
+    (get-batch-items client [["products" [1101001 1101101]] ["prices" [["ys" 1101001] ["kab" 1101201]]]])
 
-    (find-items "events" "NORMAL" ["between" 715 815])
+    (delete-item client "seq" "events_seq")
+
+    (update-item client "seq" "login_count" {:value [1 "add"]})
+
+    (scan client "events")
+
+    (scan client  "events" [["author" "eq" "steen"]])
+
+    (find-items client "events" "NORMAL" true)   
+
+    (find-items client "events" "NORMAL" true ["between" 715 815])
 
 Range and conditions support
 
