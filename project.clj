@@ -1,4 +1,4 @@
-(defproject dynamo4clj "1.0.0"
+(defproject dynamo4clj "1.0.1"
   :description "Amazon DynamoDB API"
   :dependencies [[org.clojure/clojure "1.3.0"]
                  [com.amazonaws/aws-java-sdk "1.3.6"]
