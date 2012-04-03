@@ -1,26 +1,48 @@
 (ns dynamo4clj.core
   (:use [clojure.algo.generic.functor :only (fmap)]
         [clojure.walk :only (stringify-keys keywordize-keys)])
-  (:import [com.amazonaws.auth AWSCredentials PropertiesCredentials]
+  (:import [com.amazonaws.auth AWSCredentials BasicAWSCredentials PropertiesCredentials]
            [com.amazonaws.services.dynamodb AmazonDynamoDBClient]
            [com.amazonaws.services.dynamodb.model AttributeValue AttributeValueUpdate AttributeAction PutItemRequest QueryRequest Key GetItemRequest DeleteItemRequest ScanRequest UpdateItemRequest ReturnValue Condition ComparisonOperator KeysAndAttributes BatchGetItemRequest BatchGetItemResult BatchResponse]
            [com.amazonaws AmazonServiceException ClientConfiguration Protocol]
            [java.util HashMap Properties]))
 
-(defn get-client []
-  (let [credstream (.getResourceAsStream (clojure.lang.RT/baseLoader) "aws.properties")
-        configstream (.getResourceAsStream (clojure.lang.RT/baseLoader) "config.properties") 
-        creds (PropertiesCredentials. credstream)
-        config (ClientConfiguration.)
-        props (Properties.)]
-    (. props (load configstream))
-    (. config (setProtocol Protocol/HTTPS))
-    (. config (setMaxErrorRetry 3))
-    (when-not (nil? (. props (getProperty "proxy-host"))) (. config (setProxyHost (. props (getProperty "proxy-host")))))
-    (when-not (nil? (. props (getProperty "proxy-port"))) (. config (setProxyPort (Integer/parseInt (. props (getProperty "proxy-port"))))))
-    (doto (AmazonDynamoDBClient. creds config) (.setEndpoint (. props (getProperty "region"))))))
+(defn  get-client
+  (^AmazonDynamoDBClient [] 
+   "Configure client from aws.properties and config.properties"
+   (let [credstream (.getResourceAsStream (clojure.lang.RT/baseLoader) "aws.properties")
+         configstream (.getResourceAsStream (clojure.lang.RT/baseLoader) "config.properties") 
+         creds (PropertiesCredentials. credstream)
+         config (ClientConfiguration.)
+         props (Properties.)]
+     (. props (load configstream))
+     (. config (setProtocol Protocol/HTTPS))
+     (. config (setMaxErrorRetry 3))
+     (when-not (nil? (. props (getProperty "proxy-host"))) (. config (setProxyHost (. props (getProperty "proxy-host")))))
+     (when-not (nil? (. props (getProperty "proxy-port"))) (. config (setProxyPort (Integer/parseInt (. props (getProperty "proxy-port"))))))
+     (doto (AmazonDynamoDBClient. creds config) (.setEndpoint (. props (getProperty "region"))))))
+  (^AmazonDynamoDBClient [{:keys [access-key secret-key proxy-host proxy-port region] :as config}]  
+   "Configures a client
+   
+   :access-key mandatory 
+   :secret-key mandatory 
+   :region mandatory (ex. for europe dynamodb.eu-west-1.amazonaws.com )  
+   :proxy-host optional 
+   :proxy-port integer  optional 
+   "
+   (let [creds (BasicAWSCredentials. access-key secret-key) 
+         config (ClientConfiguration.)]
+     (. config (setProtocol Protocol/HTTPS))  
+     (. config (setMaxErrorRetry 3)) 
+     (when proxy-host (. config (setProxyHost proxy-host )))
+     (when (number? proxy-port) (. config (setProxyPort proxy-port)))
+     (doto (AmazonDynamoDBClient. creds config) (.setEndpoint region )))))
 
-(def client (get-client))
+;
+;
+; http://docs.amazonwebservices.com/AWSJavaSDK/latest/javadoc/com/amazonaws/auth/STSSessionCredentialsProvider.html
+;
+;
 
 (defn- to-attr-value [value]
   "Convert a value into an AttributeValue object."
@@ -45,7 +67,7 @@
   "Create a Key object from a value."  
   (doto (Key.) (.withHashKeyElement (to-attr-value hash-key)) (.withRangeKeyElement (to-attr-value range-key))))
 
-(defn- get-value [attr-value]
+(defn- get-value [^AttributeValue attr-value]
   "Get the value of an AttributeValue object."
   (or (.getS attr-value)
       (.getN attr-value)
@@ -57,7 +79,7 @@
   (if item
     (fmap get-value (into {} item))))
 
-(defn get-item [table hash-key]
+(defn get-item [^AmazonDynamoDBClient client table hash-key]
   "Retrieve an item from a table by its hash key."
   (keywordize-keys
    (to-map
@@ -77,7 +99,7 @@
       res
       (recur (rest r) (assoc res ((first r) 0) (create-keys-and-attributes ((first r) 1)))))))
 
-(defn get-batch-items [requests]
+(defn get-batch-items [^AmazonDynamoDBClient client requests]
   "requests is a vector of vectors of the following form [[table1 [hash1 hash3]] [table2 [[hash1 range1] [hash4 range4]]]]"
   (let [ri (get-request-items requests)
         batchresult (. client (batchGetItem (doto (BatchGetItemRequest.) (.withRequestItems ri))))
@@ -87,42 +109,42 @@
         (keywordize-keys res)
         (recur (rest t) (assoc res (first t) (vec (map to-map (.getItems (. (. batchresult getResponses) (get (first t))))))))))))
 
-(defn delete-item [table hash-key]
+(defn delete-item [^AmazonDynamoDBClient client table hash-key]
   "Delete an item from a table by its hash key."  
   (. client (deleteItem (DeleteItemRequest. table (item-key hash-key)))))
 
 
-(defn insert-item [table item]
+(defn insert-item [^AmazonDynamoDBClient client table item]
   "Insert item (map) in table"
   (let [req (doto (PutItemRequest.) (.withTableName table) (.withItem (fmap to-attr-value (stringify-keys item))))]      
     (. client (putItem req))))
 
 
-(defn update-item [table key attr]
+(defn update-item [^AmazonDynamoDBClient client table key attr]
   "Update item (map) in table with optional attributes"
   (let [key (doto (Key.) (.withHashKeyElement (to-attr-value key)))
         attrupd (fmap to-attr-value-update (stringify-keys attr))
-        req (doto (UpdateItemRequest.) (.withTableName table) (.withKey key) (.withReturnValues ReturnValue/ALL_NEW) (.withAttributeUpdates attrupd))] 
+        req (doto (UpdateItemRequest.) (.withTableName table) (.withKey key) (.withReturnValues ReturnValue/ALL_NEW) (.withAttributeUpdates attrupd))]
     (keywordize-keys (to-map (.getAttributes (. client (updateItem req)))))))
 
 (defn create-condition [c]
   (let [[operator param1 param2] c]
     (cond
-     (= operator "between") (doto (Condition.) (.withComparisonOperator ComparisonOperator/BETWEEN) (.withAttributeValueList (vector (to-attr-value param1) (to-attr-value param2))))
-     (= operator "begins-with") (doto (Condition.) (.withComparisonOperator ComparisonOperator/BEGINS_WITH) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "contains") (doto (Condition.) (.withComparisonOperator ComparisonOperator/CONTAINS) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "eq") (doto (Condition.) (.withComparisonOperator ComparisonOperator/EQ) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "ge") (doto (Condition.) (.withComparisonOperator ComparisonOperator/GE) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "gt") (doto (Condition.) (.withComparisonOperator ComparisonOperator/GT) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "le") (doto (Condition.) (.withComparisonOperator ComparisonOperator/LE) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "lt") (doto (Condition.) (.withComparisonOperator ComparisonOperator/LT) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "ne") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NE) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "not-contains") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NOT_CONTAINS) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "not-null") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NOT_NULL) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "null") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NULL) (.withAttributeValueList (vector (to-attr-value param1))))
-     (= operator "in") (doto (Condition.) (.withComparisonOperator ComparisonOperator/IN) (.withAttributeValueList (vector (to-attr-value param1)))))))
+     (= operator "between") (doto (Condition.) (.withComparisonOperator ComparisonOperator/BETWEEN) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1) (to-attr-value param2))))
+     (= operator "begins-with") (doto (Condition.) (.withComparisonOperator ComparisonOperator/BEGINS_WITH) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "contains") (doto (Condition.) (.withComparisonOperator ComparisonOperator/CONTAINS) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "eq") (doto (Condition.) (.withComparisonOperator ComparisonOperator/EQ) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "ge") (doto (Condition.) (.withComparisonOperator ComparisonOperator/GE) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "gt") (doto (Condition.) (.withComparisonOperator ComparisonOperator/GT) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "le") (doto (Condition.) (.withComparisonOperator ComparisonOperator/LE) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "lt") (doto (Condition.) (.withComparisonOperator ComparisonOperator/LT) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "ne") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NE) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "not-contains") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NOT_CONTAINS) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "not-null") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NOT_NULL) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "null") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NULL) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
+     (= operator "in") (doto (Condition.) (.withComparisonOperator ComparisonOperator/IN) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1)))))))
 
-(defn find-items [table key consistent & range]
+(defn find-items [^AmazonDynamoDBClient client table key consistent & range]
   "Find items with key and optional range. Range has the form [operator param1 param2] or [operator param1]"
   (let [condition (create-condition (first range))       
         req (cond
@@ -130,7 +152,7 @@
              (not (empty? range)) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withRangeKeyCondition condition) (.withConsistentRead consistent)))]
     (keywordize-keys (map to-map (.getItems (. client (query req)))))))
 
-(defn scan [table & conditions]
+(defn  scan [^AmazonDynamoDBClient client table & conditions]
   "Return the items in a DynamoDB table. Conditions is vector of tuples like [field operator param1 param2] or [field operator param1]"
   (let [conds (loop [c (first conditions) res {}]
                 (if (empty? c)
