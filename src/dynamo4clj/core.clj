@@ -79,7 +79,7 @@
   (if item
     (fmap get-value (into {} item))))
 
-(defn- get-item [^AmazonDynamoDBClient client table hash-key]
+(defn get-item [^AmazonDynamoDBClient client table hash-key]
   "Retrieve an item from a table by its hash key."
   (keywordize-keys
    (to-map
