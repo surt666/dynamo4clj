@@ -63,7 +63,7 @@
   "Create a Key object from a value."  
   (Key. (to-attr-value hash-key)))
 
-(defn item-key-range [hash-key range-key]
+(defn- item-key-range [hash-key range-key]
   "Create a Key object from a value."  
   (doto (Key.) (.withHashKeyElement (to-attr-value hash-key)) (.withRangeKeyElement (to-attr-value range-key))))
 
@@ -79,7 +79,7 @@
   (if item
     (fmap get-value (into {} item))))
 
-(defn get-item [^AmazonDynamoDBClient client table hash-key]
+(defn- get-item [^AmazonDynamoDBClient client table hash-key]
   "Retrieve an item from a table by its hash key."
   (keywordize-keys
    (to-map
@@ -87,7 +87,7 @@
      (. client (getItem (doto (GetItemRequest.) (.withTableName table)
                               (.withKey (Key. (to-attr-value hash-key))))))))))
 
-(defn create-keys-and-attributes [keys] 
+(defn- create-keys-and-attributes [keys] 
   (let [ka (KeysAndAttributes.)]
     (if (vector? (first keys))
       (. ka (withKeys (map #(item-key-range (% 0) (% 1)) keys)))
@@ -127,7 +127,7 @@
         req (doto (UpdateItemRequest.) (.withTableName table) (.withKey key) (.withReturnValues ReturnValue/ALL_NEW) (.withAttributeUpdates attrupd))]
     (keywordize-keys (to-map (.getAttributes (. client (updateItem req)))))))
 
-(defn create-condition [c]
+(defn- create-condition [c]
   (let [[operator param1 param2] c]
     (cond
      (= operator "between") (doto (Condition.) (.withComparisonOperator ComparisonOperator/BETWEEN) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1) (to-attr-value param2))))
