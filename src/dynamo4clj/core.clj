@@ -26,7 +26,9 @@
   "Convert a value into an AttributeValue object."
   (cond
    (string? value) (doto (AttributeValue.) (.setS value))
-   (number? value) (doto (AttributeValue.) (.setN (str value))))) ;;TODO handle sets
+   (number? value) (doto (AttributeValue.) (.setN (str value)))
+   (and (set? value) (string? (first value))) (doto (AttributeValue.) (.setSS value))
+   (and (set? value) (number? (first value))) (doto (AttributeValue.) (.setNS value))))
 
 (defn- to-attr-value-update [value]
   "Convert a value into an AttributeValueUpdate object. Value is a tuple like [1 \"add\"]"
