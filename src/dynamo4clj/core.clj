@@ -80,7 +80,7 @@
     (fmap get-value (into {} item))))
 
 
-(defn- get-item [^AmazonDynamoDBClient client table hash-key]
+(defn get-item [^AmazonDynamoDBClient client table hash-key]
   "Retrieve an item from a table by its hash key."
   (let [ires (. client (getItem (doto (GetItemRequest.) (.withTableName table) (.withKey (Key. (to-attr-value hash-key))))))]
     (with-meta (keywordize-keys (to-map (.getItem ires))) {:consumed-capacity-units (.getConsumedCapacityUnits ires)})))

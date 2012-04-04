@@ -5,23 +5,27 @@ Clojure API for Amazon DynamoDB
 ## Usage
 
 ### with config files
-Put a file called aws.properties in src (or somewhere else where it ends up in the root of the classpath) with your aws keys in the format:
+Put a file called `aws.properties` in src (or somewhere else where it ends up in the root of the classpath) with your aws keys in the format:
 
-accessKey:blabla
-secretKey:fooooo
+accessKey:blabla    
+secretKey:fooooo    
 
-Optionally put a config.properties file in src with the following optional parameters
+Optionally put a `config.properties` file in src with the following optional parameters
 
-proxy-host=sltarray
-proxy-port=8080
-region=dynamodb.eu-west-1.amazonaws.com
+proxy-host=sltarray   
+proxy-port=8080  
+region=dynamodb.eu-west-1.amazonaws.com  
 
     (def client (get-client))
 
 
 ### with config map 
 
-(def client (dyn/get-client {:access-key "foo" :secret-key "bar" :proxy-host "example.com" :proxy-port 8080 :region "dynamodb.eu-west-1.amazonaws.com"}))
+    (def client (get-client {:access-key "foo"
+                             :secret-key "bar"
+                             :proxy-host "example.com" 
+                             :proxy-port 8080 
+                             :region "dynamodb.eu-west-1.amazonaws.com"}))
 
 ### api-calls 
 
