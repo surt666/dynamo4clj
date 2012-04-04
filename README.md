@@ -39,11 +39,11 @@ region=dynamodb.eu-west-1.amazonaws.com
 
     (scan client "events")
 
-    (scan client  "events" [["author" "eq" "steen"]])
+    (scan client  "events" [["author" "eq" "steen"]] nil)
 
     (find-items client "events" "NORMAL" true)   
 
-    (find-items client "events" "NORMAL" true ["between" 715 815])
+    (find-items client "events" "NORMAL" true ["between" 715 815] [attr1 attr2])
 
 Return values have meta data containing consumed units, count and lastkey where applicable.
 
