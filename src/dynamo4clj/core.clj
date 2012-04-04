@@ -59,7 +59,7 @@
    (= (get value 1) "delete") (doto (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0))) (.withAction AttributeAction/DELETE))
    (= (get value 1) "put") (doto (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0))) (.withAction AttributeAction/PUT))))
 
-(defn- item-key [hash-key]
+(defn item-key [hash-key]
   "Create a Key object from a value."  
   (Key. (to-attr-value hash-key)))
 
@@ -88,8 +88,8 @@
 (defn- create-keys-and-attributes [keys] 
   (let [ka (KeysAndAttributes.)]
     (if (vector? (first keys))
-      (. ka (withKeys (map #(item-key-range (% 0) (% 1)) keys)))
-      (. ka (withKeys (map #(item-key %) keys))))))
+      (. ka (withKeys ^java.util.Collection (map #(item-key-range (% 0) (% 1)) keys)))
+      (. ka (withKeys ^java.util.Collection (map #(item-key %) keys))))))
 
 (defn- get-request-items [requests]
   (loop [r requests res {}]
@@ -105,7 +105,7 @@
     (loop [t tables res {}]
       (if (empty? t)
         (keywordize-keys res)
-        (recur (rest t) (let [bres (. (. batchresult getResponses) (get (first t)))]
+        (recur (rest t) (let [^BatchResponse bres (. (. batchresult getResponses) (get (first t)))]
                           (assoc res (first t) (with-meta (vec (map to-map (.getItems bres)))
                                                  {:consumed-capacity-units (.getConsumedCapacityUnits bres)}))))))))
 
@@ -160,7 +160,7 @@
         reqq (cond
              (empty? range-condition) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withConsistentRead consistent))
              (not (empty? range-condition)) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withRangeKeyCondition condition) (.withConsistentRead consistent)))
-        req (if (empty? return-attributes) reqq (doto reqq (.withAttributesToGet (map #(name %) return-attributes))))]
+        req (if (empty? return-attributes) reqq (doto reqq (.withAttributesToGet ^java.util.Collection (map #(name %) return-attributes))))]
     (let [qres (. client (query req))]
       (with-meta (keywordize-keys (map to-map (.getItems qres)))
         {:consumed-capacity-units (.getConsumedCapacityUnits qres) :count (.getCount qres) :last-key (.getLastEvaluatedKey qres)}))))
@@ -174,7 +174,7 @@
     (let [reqq (cond
                 (empty? conds) (doto (ScanRequest.) (.withTableName table))
                 (not (empty? conds)) (doto (ScanRequest.) (.withTableName table) (.withScanFilter conds)))
-          req (if (empty? return-attributes) reqq (doto reqq (.withAttributesToGet (map #(name %) return-attributes))))]
+          req (if (empty? return-attributes) reqq (doto reqq (.withAttributesToGet ^java.util.Collection (map #(name %) return-attributes))))]
       (let [sres (. client (scan req))]
         (with-meta (keywordize-keys (map to-map (.getItems sres)))
           {:consumed-capacity-units (.getConsumedCapacityUnits sres) :count (.getCount sres) :last-key (.getLastEvaluatedKey sres)})))))
