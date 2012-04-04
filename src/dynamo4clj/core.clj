@@ -111,9 +111,11 @@
 
 ;;TODO specify returnvalues for all calls
 
-(defn delete-item [^AmazonDynamoDBClient client table hash-key]
+(defn delete-item [^AmazonDynamoDBClient client table hash-key & [range-key]]
   "Delete an item from a table by its hash key. Return old value"  
-  (let [req (doto (DeleteItemRequest.) (.withTableName table) (.withKey (item-key hash-key)) (.withReturnValues ReturnValue/ALL_OLD))
+  (let [req (if range-key
+              (doto (DeleteItemRequest.) (.withTableName table) (.withKey (item-key-range hash-key range-key)) (.withReturnValues ReturnValue/ALL_OLD))
+              (doto (DeleteItemRequest.) (.withTableName table) (.withKey (item-key hash-key)) (.withReturnValues ReturnValue/ALL_OLD)))
         dres (. client (deleteItem req))
         attr (.getAttributes dres)]
     (with-meta (keywordize-keys (to-map attr)) {:consumed-capacity-units (.getConsumedCapacityUnits dres)})))
