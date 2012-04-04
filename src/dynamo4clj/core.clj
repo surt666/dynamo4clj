@@ -154,27 +154,37 @@
      (= operator "null") (doto (Condition.) (.withComparisonOperator ComparisonOperator/NULL) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1))))
      (= operator "in") (doto (Condition.) (.withComparisonOperator ComparisonOperator/IN) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1)))))))
 
-(defn find-items [^AmazonDynamoDBClient client table key consistent & [range-condition return-attributes]]
+(defn find-items
   "Find items with key and optional range. Range has the form [operator param1 param2] or [operator param1], and return-attributes is a vector of attributes to return as in [attr1 attr2]"
-  (let [condition (create-condition range-condition)       
-        reqq (cond
-             (empty? range-condition) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withConsistentRead consistent))
-             (not (empty? range-condition)) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withRangeKeyCondition condition) (.withConsistentRead consistent)))
-        req (if (empty? return-attributes) reqq (doto reqq (.withAttributesToGet ^java.util.Collection (map #(name %) return-attributes))))]
-    (let [qres (. client (query req))]
-      (with-meta (keywordize-keys (map to-map (.getItems qres)))
-        {:consumed-capacity-units (.getConsumedCapacityUnits qres) :count (.getCount qres) :last-key (.getLastEvaluatedKey qres)}))))
+  ([^AmazonDynamoDBClient client table key consistent range-condition return-attributes]                    
+     (let [condition (create-condition range-condition)       
+           reqq (cond
+                 (empty? range-condition) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withConsistentRead consistent))
+                 (not (empty? range-condition)) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withRangeKeyCondition condition) (.withConsistentRead consistent)))
+           req (if (empty? return-attributes) reqq (doto reqq (.withAttributesToGet ^java.util.Collection (map #(name %) return-attributes))))]
+       (let [qres (. client (query req))]
+         (with-meta (keywordize-keys (map to-map (.getItems qres)))
+           {:consumed-capacity-units (.getConsumedCapacityUnits qres) :count (.getCount qres) :last-key (.getLastEvaluatedKey qres)}))))
+  ([^AmazonDynamoDBClient client table key consistent range-condition]     
+     (find-items client table key consistent range-condition nil))
+  ([^AmazonDynamoDBClient client table key consistent]     
+     (find-items client table key consistent nil nil)))
 
-(defn scan [^AmazonDynamoDBClient client table & [conditions return-attributes]]
+(defn scan
   "Return the items in a DynamoDB table. Conditions is vector of tuples like [field operator param1 param2] or [field operator param1]. Return-attributes is a vector of attributes to return as in [attr1 attr2]"
-  (let [conds (loop [c (first conditions) res {}]
-                (if (empty? c)
-                  res
-                  (recur (rest c) (assoc res (first (first c)) (create-condition (vec (rest (first c))))))))]
-    (let [reqq (cond
-                (empty? conds) (doto (ScanRequest.) (.withTableName table))
-                (not (empty? conds)) (doto (ScanRequest.) (.withTableName table) (.withScanFilter conds)))
-          req (if (empty? return-attributes) reqq (doto reqq (.withAttributesToGet ^java.util.Collection (map #(name %) return-attributes))))]
-      (let [sres (. client (scan req))]
-        (with-meta (keywordize-keys (map to-map (.getItems sres)))
-          {:consumed-capacity-units (.getConsumedCapacityUnits sres) :count (.getCount sres) :last-key (.getLastEvaluatedKey sres)})))))
+  ([^AmazonDynamoDBClient client table conditions return-attributes]  
+     (let [conds (loop [c (first conditions) res {}]
+                   (if (empty? c)
+                     res
+                     (recur (rest c) (assoc res (first (first c)) (create-condition (vec (rest (first c))))))))]
+       (let [reqq (cond
+                   (empty? conds) (doto (ScanRequest.) (.withTableName table))
+                   (not (empty? conds)) (doto (ScanRequest.) (.withTableName table) (.withScanFilter conds)))
+             req (if (empty? return-attributes) reqq (doto reqq (.withAttributesToGet ^java.util.Collection (map #(name %) return-attributes))))]
+         (let [sres (. client (scan req))]
+           (with-meta (keywordize-keys (map to-map (.getItems sres)))
+             {:consumed-capacity-units (.getConsumedCapacityUnits sres) :count (.getCount sres) :last-key (.getLastEvaluatedKey sres)})))))
+  ([^AmazonDynamoDBClient client table conditions]
+     (scan client table conditions nil))
+  ([^AmazonDynamoDBClient client table]
+     (scan client table nil nil)))
