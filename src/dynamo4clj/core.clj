@@ -79,13 +79,11 @@
   (if item
     (fmap get-value (into {} item))))
 
+
 (defn- get-item [^AmazonDynamoDBClient client table hash-key]
   "Retrieve an item from a table by its hash key."
-  (keywordize-keys
-   (to-map
-    (.getItem
-     (. client (getItem (doto (GetItemRequest.) (.withTableName table)
-                              (.withKey (Key. (to-attr-value hash-key))))))))))
+  (let [ires (. client (getItem (doto (GetItemRequest.) (.withTableName table) (.withKey (Key. (to-attr-value hash-key))))))]
+    (with-meta (keywordize-keys (to-map (.getItem ires))) {:consumed-capacity-units (.getConsumedCapacityUnits ires)})))
 
 (defn- create-keys-and-attributes [keys] 
   (let [ka (KeysAndAttributes.)]
@@ -107,25 +105,35 @@
     (loop [t tables res {}]
       (if (empty? t)
         (keywordize-keys res)
-        (recur (rest t) (assoc res (first t) (vec (map to-map (.getItems (. (. batchresult getResponses) (get (first t))))))))))))
+        (recur (rest t) (let [bres (. (. batchresult getResponses) (get (first t)))]
+                          (assoc res (first t) (with-meta (vec (map to-map (.getItems bres)))
+                                                 {:consumed-capacity-units (.getConsumedCapacityUnits bres)}))))))))
+
+;;TODO specify returnvalues for all calls
 
 (defn delete-item [^AmazonDynamoDBClient client table hash-key]
-  "Delete an item from a table by its hash key."  
-  (. client (deleteItem (DeleteItemRequest. table (item-key hash-key)))))
+  "Delete an item from a table by its hash key. Return old value"  
+  (let [req (doto (DeleteItemRequest.) (.withTableName table) (.withKey (item-key hash-key)) (.withReturnValues ReturnValue/ALL_OLD))
+        dres (. client (deleteItem req))
+        attr (.getAttributes dres)]
+    (with-meta (keywordize-keys (to-map attr)) {:consumed-capacity-units (.getConsumedCapacityUnits dres)})))
 
 
 (defn insert-item [^AmazonDynamoDBClient client table item]
-  "Insert item (map) in table"
-  (let [req (doto (PutItemRequest.) (.withTableName table) (.withItem (fmap to-attr-value (stringify-keys item))))]      
-    (. client (putItem req))))
+  "Insert item (map) in table. Returns empty map if new key, else returns the old value"
+  (let [req (doto (PutItemRequest.) (.withTableName table) (.withItem (fmap to-attr-value (stringify-keys item))) (.withReturnValues ReturnValue/ALL_OLD))      
+        pres (. client (putItem req))
+        attr (.getAttributes pres)]    
+    (with-meta (if attr (keywordize-keys (to-map attr)) {}) {:consumed-capacity-units (.getConsumedCapacityUnits pres)})))
 
 
 (defn update-item [^AmazonDynamoDBClient client table key attr]
   "Update item (map) in table with optional attributes"
   (let [key (doto (Key.) (.withHashKeyElement (to-attr-value key)))
         attrupd (fmap to-attr-value-update (stringify-keys attr))
-        req (doto (UpdateItemRequest.) (.withTableName table) (.withKey key) (.withReturnValues ReturnValue/ALL_NEW) (.withAttributeUpdates attrupd))]
-    (keywordize-keys (to-map (.getAttributes (. client (updateItem req)))))))
+        req (doto (UpdateItemRequest.) (.withTableName table) (.withKey key) (.withReturnValues ReturnValue/ALL_NEW) (.withAttributeUpdates attrupd))
+        ures (. client (updateItem req))]
+    (with-meta (keywordize-keys (to-map (.getAttributes ures))) {:consumed-capacity-units (.getConsumedCapacityUnits ures)})))
 
 (defn- create-condition [c]
   (let [[operator param1 param2] c]
@@ -150,9 +158,11 @@
         req (cond
              (empty? range) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withConsistentRead consistent))
              (not (empty? range)) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withRangeKeyCondition condition) (.withConsistentRead consistent)))]
-    (keywordize-keys (map to-map (.getItems (. client (query req)))))))
+    (let [qres (. client (query req))]
+      (with-meta (keywordize-keys (map to-map (.getItems qres)))
+        {:consumed-capacity-units (.getConsumedCapacityUnits qres) :count (.getCount qres) :last-key (.getLastEvaluatedKey qres)}))))
 
-(defn  scan [^AmazonDynamoDBClient client table & conditions]
+(defn scan [^AmazonDynamoDBClient client table & conditions]
   "Return the items in a DynamoDB table. Conditions is vector of tuples like [field operator param1 param2] or [field operator param1]"
   (let [conds (loop [c (first conditions) res {}]
                 (if (empty? c)
@@ -161,4 +171,6 @@
     (let [req (cond
                 (empty? conds) (doto (ScanRequest.) (.withTableName table))
                 (not (empty? conds)) (doto (ScanRequest.) (.withTableName table) (.withScanFilter conds)))]
-      (keywordize-keys (map to-map (.getItems (. client (scan req))))))))
+      (let [sres (. client (scan req))]
+        (with-meta (keywordize-keys (map to-map (.getItems sres)))
+          {:consumed-capacity-units (.getConsumedCapacityUnits sres) :count (.getCount sres) :last-key (.getLastEvaluatedKey sres)})))))

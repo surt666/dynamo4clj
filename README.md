@@ -41,6 +41,8 @@ region=dynamodb.eu-west-1.amazonaws.com
 
     (find-items client "events" "NORMAL" true ["between" 715 815])
 
+Return values have meta data containing consumed units, count and lastkey where applicable.
+
 Range and conditions support
 
 between,contains,eq,ge,gt,le,lt,ne,not-contains,not-null,null,begins-with
