@@ -59,7 +59,7 @@
    (= (get value 1) "delete") (doto (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0))) (.withAction AttributeAction/DELETE))
    (= (get value 1) "put") (doto (AttributeValueUpdate.) (.withValue (to-attr-value (get value 0))) (.withAction AttributeAction/PUT))))
 
-(defn item-key [hash-key]
+(defn- item-key [hash-key]
   "Create a Key object from a value."  
   (Key. (to-attr-value hash-key)))
 
