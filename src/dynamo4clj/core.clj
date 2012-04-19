@@ -16,23 +16,24 @@
          config (ClientConfiguration.)
          props (Properties.)]
      (. props (load configstream))
-     (. config (setProtocol Protocol/HTTPS))
+     (if (= (. props (getProperty "protocol")) "https") (. config (setProtocol Protocol/HTTPS)) (. config (setProtocol Protocol/HTTP)))     
      (. config (setMaxErrorRetry 3))
      (when-not (nil? (. props (getProperty "proxy-host"))) (. config (setProxyHost (. props (getProperty "proxy-host")))))
      (when-not (nil? (. props (getProperty "proxy-port"))) (. config (setProxyPort (Integer/parseInt (. props (getProperty "proxy-port"))))))
      (doto (AmazonDynamoDBClient. creds config) (.setEndpoint (. props (getProperty "region"))))))
-  (^AmazonDynamoDBClient [{:keys [access-key secret-key proxy-host proxy-port region] :as config}]  
+  (^AmazonDynamoDBClient [{:keys [access-key secret-key proxy-host proxy-port region protocol] :as config}]  
    "Configures a client
    
    :access-key mandatory 
    :secret-key mandatory 
    :region mandatory (ex. for europe dynamodb.eu-west-1.amazonaws.com )  
    :proxy-host optional 
-   :proxy-port integer  optional 
+   :proxy-port integer  optional
+   :protocol http|https optional
    "
    (let [creds (BasicAWSCredentials. access-key secret-key) 
          config (ClientConfiguration.)]
-     (. config (setProtocol Protocol/HTTPS))  
+     (if (= protocol "https") (. config (setProtocol Protocol/HTTPS)) (. config (setProtocol Protocol/HTTP)))  
      (. config (setMaxErrorRetry 3)) 
      (when proxy-host (. config (setProxyHost proxy-host )))
      (when (number? proxy-port) (. config (setProxyPort proxy-port)))
@@ -80,9 +81,10 @@
     (fmap get-value (into {} item))))
 
 
-(defn get-item [^AmazonDynamoDBClient client table hash-key]
+(defn get-item [^AmazonDynamoDBClient client table hash-key & [range-key]]
   "Retrieve an item from a table by its hash key."
-  (let [ires (. client (getItem (doto (GetItemRequest.) (.withTableName table) (.withKey (Key. (to-attr-value hash-key))))))]
+  (let [key (if range (item-key-range hash-key range-key) (item-key hash-key))
+        ires (. client (getItem (doto (GetItemRequest.) (.withTableName table) (.withKey key))))]
     (with-meta (keywordize-keys (to-map (.getItem ires))) {:consumed-capacity-units (.getConsumedCapacityUnits ires)})))
 
 (defn- create-keys-and-attributes [keys] 

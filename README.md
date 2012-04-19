@@ -15,6 +15,7 @@ Optionally put a `config.properties` file in src with the following optional par
 proxy-host=sltarray   
 proxy-port=8080  
 region=dynamodb.eu-west-1.amazonaws.com  
+protocol=https
 
     (def client (get-client))
 
@@ -25,11 +26,16 @@ region=dynamodb.eu-west-1.amazonaws.com
                              :secret-key "bar"
                              :proxy-host "example.com" 
                              :proxy-port 8080 
-                             :region "dynamodb.eu-west-1.amazonaws.com"}))
+                             :region "dynamodb.eu-west-1.amazonaws.com"
+                             :protocol "https"}))
 
 ### api-calls 
 
-    (get-item client "seq" "events_seq")
+    (insert-item client "table" {:hash "hash" :range "range" :foo "bar"})
+
+    (get-item client "table" "hash")
+    
+    (get-item client "table" "hash" "range")
 
     (get-batch-items client [["products" [1101001 1101101]] ["prices" [["ys" 1101001] ["kab" 1101201]]]])
 
