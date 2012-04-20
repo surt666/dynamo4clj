@@ -31,27 +31,31 @@ protocol=https
 
 ### api-calls 
 
-    (insert-item client "table" {:hash "hash" :range "range" :foo "bar"})
+    (insert-item client "table" {:hash "hash-key" :range "range-key" :foo "bar"})
 
-    (get-item client "table" "hash")
+    (get-item client "table" "hash-key")
     
-    (get-item client "table" "hash" "range")
+    (get-item client "table" "hash-key" "range-key")
 
-    (get-batch-items client [["products" [1101001 1101101]] ["prices" [["ys" 1101001] ["kab" 1101201]]]])
+    (get-batch-items client [["table1" [1101001 1101101]] ["table2" [["ys" 1101001] ["kab" 1101201]]]])
 
-    (delete-item client "seq" "events_seq")
+    (delete-item client "table" "hash-key")
+    
+    (delete-item client "table" "hash-key" "range-key")
 
-    (update-item client "seq" "login_count" {:value [1 "add"]})
+    (update-item client "table" "hash-key" {:value [1 "add"]})
+     
+    (update-item client "table" "hash-key" {:value [1 "add"]} "range-key")
 
-    (scan client "events")
+    (scan client "table")
 
-    (scan client  "events" [["author" "eq" "steen"]] [:attr])
+    (scan client  "table" [["author" "eq" "steen"]] [:attr])
 
-    (find-items client "events" "NORMAL" true)   
+    (find-items client "table" "NORMAL" true)   
 
-    (find-items client "events" "NORMAL" true ["between" 715 815])
+    (find-items client "table" "NORMAL" true ["between" 715 815])
 
-    (find-items client "events" "NORMAL" true ["between" 715 815] [:attr1 :attr2])
+    (find-items client "table" "NORMAL" true ["between" 715 815] [:attr1 :attr2])
 
 Return values have meta data containing consumed units, count and lastkey where applicable.
 
