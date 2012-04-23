@@ -11,21 +11,29 @@
 
 (defn get-client 
   ([]
-   "Configures a client from aws.properties and config.properties"
+   "Setup client configuration from aws.properties and config.properties"
    (let [credstream (.getResourceAsStream (clojure.lang.RT/baseLoader) "aws.properties")
          configstream (.getResourceAsStream (clojure.lang.RT/baseLoader) "config.properties") 
+         provider (STSSessionCredentialsProvider.  (PropertiesCredentials. credstream))
          config (ClientConfiguration.)
          props (Properties.)]
      (. props (load configstream))
      (if (= (. props (getProperty "protocol")) "https") (. config (setProtocol Protocol/HTTPS)) (. config (setProtocol Protocol/HTTP)))     
      (. config (setMaxErrorRetry 3))
      (when-not (nil? (. props (getProperty "proxy-host"))) (. config (setProxyHost (. props (getProperty "proxy-host")))))
+<<<<<<< HEAD
      (when-not (nil? (. props (getProperty "proxy-port"))) (. config (setProxyPort (Integer/parseInt (. props (getProperty "proxy-port")))))) 
-     (let [provider (STSSessionCredentialsProvider.  (PropertiesCredentials. credstream) config) ]
-       (atom  {:session-provider provider :time (System/currentTimeMillis)  :client (doto (AmazonDynamoDBClient. provider config) (.setEndpoint (. props (getProperty "region"))))}))))
+     (atom  {:session-provider provider :time (System/currentTimeMillis)  :client (doto (AmazonDynamoDBClient. session-provider config) (.setEndpoint (. props (getProperty "region"))))})))
+  ([{:keys [access-key secret-key proxy-host proxy-port region] :as configuration}]  
+   "Setup client configuration
 
-  ([{:keys [access-key secret-key proxy-host proxy-port protocol region] :as configuration}]  
+=======
+     (when-not (nil? (. props (getProperty "proxy-port"))) (. config (setProxyPort (Integer/parseInt (. props (getProperty "proxy-port"))))))
+     (doto (AmazonDynamoDBClient. creds config) (.setEndpoint (. props (getProperty "region"))))))
+  (^AmazonDynamoDBClient [{:keys [access-key secret-key proxy-host proxy-port region protocol] :as config}]  
    "Configures a client
+   
+>>>>>>> 71a788421fe086984fbb7d98a34c2b3f90c48e7e
    :access-key mandatory 
    :secret-key mandatory 
    :region mandatory (ex. for europe dynamodb.eu-west-1.amazonaws.com )  
@@ -33,17 +41,20 @@
    :proxy-port integer  optional
    :protocol http|https optional
    "
+<<<<<<< HEAD
    (let [config (ClientConfiguration.)]
+     (. config (setProtocol Protocol/HTTPS))  
+=======
+   (let [creds (BasicAWSCredentials. access-key secret-key) 
+         config (ClientConfiguration.)]
      (if (= protocol "https") (. config (setProtocol Protocol/HTTPS)) (. config (setProtocol Protocol/HTTP)))  
+>>>>>>> 71a788421fe086984fbb7d98a34c2b3f90c48e7e
      (. config (setMaxErrorRetry 3)) 
      (when proxy-host (. config (setProxyHost proxy-host )))
      (when (number? proxy-port) (. config (setProxyPort proxy-port)))
-     (let [provider (STSSessionCredentialsProvider. (BasicAWSCredentials. access-key secret-key) config)  ]
-       (atom  {:session-provider provider
-               :time (System/currentTimeMillis)  
-               :client (doto (AmazonDynamoDBClient. provider config) (.setEndpoint region))})))))
+     (atom  {:session-provider (STSSessionCredentialsProvider.  (BasicAWSCredentials. access-key secret-key) config) :time (System/currentTimeMillis)  :client (doto (AmazonDynamoDBClient. session-provider config) (.setEndpoint (. props (getProperty "region"))))}))))
 
-(defn- ^AmazonDynamoDBClient refresh-client [client-atom]
+(defn ^AmazonDynamoDBClient refresh-client [client-atom]
   (let [{:keys [client time session-provider] :as client-map} @client-atom
         now (System/currentTimeMillis)]
     (when (> now (+ time refresh)) 
@@ -93,10 +104,10 @@
     (fmap get-value (into {} item))))
 
 
-(defn get-item [client table hash-key & [range-key]]
+(defn get-item [^AmazonDynamoDBClient client table hash-key & [range-key]]
   "Retrieve an item from a table by its hash key."
   (let [key (if range (item-key-range hash-key range-key) (item-key hash-key))
-        ires (. (refresh-client client) (getItem (doto (GetItemRequest.) (.withTableName table) (.withKey key))))]
+        ires (. client (getItem (doto (GetItemRequest.) (.withTableName table) (.withKey key))))]
     (with-meta (keywordize-keys (to-map (.getItem ires))) {:consumed-capacity-units (.getConsumedCapacityUnits ires)})))
 
 (defn- create-keys-and-attributes [keys] 
@@ -111,10 +122,10 @@
       res
       (recur (rest r) (assoc res ((first r) 0) (create-keys-and-attributes ((first r) 1)))))))
 
-(defn get-batch-items [client requests]
+(defn get-batch-items [^AmazonDynamoDBClient client requests]
   "requests is a vector of vectors of the following form [[table1 [hash1 hash3]] [table2 [[hash1 range1] [hash4 range4]]]]"
   (let [ri (get-request-items requests)
-        batchresult (. (refresh-client client)(batchGetItem (doto (BatchGetItemRequest.) (.withRequestItems ri))))
+        batchresult (. client (batchGetItem (doto (BatchGetItemRequest.) (.withRequestItems ri))))
         tables (map #(first %) requests)]
     (loop [t tables res {}]
       (if (empty? t)
@@ -125,30 +136,30 @@
 
 ;;TODO specify returnvalues for all calls
 
-(defn delete-item [client table hash-key & [range-key]]
+(defn delete-item [^AmazonDynamoDBClient client table hash-key & [range-key]]
   "Delete an item from a table by its hash key and optional range-key. Return old value"  
   (let [req (if range-key
               (doto (DeleteItemRequest.) (.withTableName table) (.withKey (item-key-range hash-key range-key)) (.withReturnValues ReturnValue/ALL_OLD))
               (doto (DeleteItemRequest.) (.withTableName table) (.withKey (item-key hash-key)) (.withReturnValues ReturnValue/ALL_OLD)))
-        dres (. (refresh-client client)(deleteItem req))
+        dres (. client (deleteItem req))
         attr (.getAttributes dres)]
     (with-meta (keywordize-keys (to-map attr)) {:consumed-capacity-units (.getConsumedCapacityUnits dres)})))
 
 
-(defn insert-item [client table item]
+(defn insert-item [^AmazonDynamoDBClient client table item]
   "Insert item (map) in table. Returns empty map if new key, else returns the old value"
   (let [req (doto (PutItemRequest.) (.withTableName table) (.withItem (fmap to-attr-value (stringify-keys item))) (.withReturnValues ReturnValue/ALL_OLD))      
-        pres (. (refresh-client client) (putItem req))
+        pres (. client (putItem req))
         attr (.getAttributes pres)]    
     (with-meta (if attr (keywordize-keys (to-map attr)) {}) {:consumed-capacity-units (.getConsumedCapacityUnits pres)})))
 
 
-(defn update-item [client table hash-key attr & [range-key]]
+(defn update-item [^AmazonDynamoDBClient client table hash-key attr & [range-key]]
   "Update item (map) in table with optional attributes"
   (let [key (if range-key (item-key-range hash-key range-key) (item-key hash-key))
         attrupd (fmap to-attr-value-update (stringify-keys attr))
         req (doto (UpdateItemRequest.) (.withTableName table) (.withKey key) (.withReturnValues ReturnValue/ALL_NEW) (.withAttributeUpdates attrupd))
-        ures (.  (refresh-client client) (updateItem req))]
+        ures (. client (updateItem req))]
     (with-meta (keywordize-keys (to-map (.getAttributes ures))) {:consumed-capacity-units (.getConsumedCapacityUnits ures)})))
 
 (defn- create-condition [c]
@@ -170,23 +181,23 @@
 
 (defn find-items
   "Find items with key and optional range. Range has the form [operator param1 param2] or [operator param1], and return-attributes is a vector of attributes to return as in [attr1 attr2]"
-  ([client table key consistent range-condition return-attributes]                    
+  ([^AmazonDynamoDBClient client table key consistent range-condition return-attributes]                    
      (let [condition (create-condition range-condition)       
            reqq (cond
                  (empty? range-condition) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withConsistentRead consistent))
                  (not (empty? range-condition)) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withRangeKeyCondition condition) (.withConsistentRead consistent)))
            req (if (empty? return-attributes) reqq (doto reqq (.withAttributesToGet ^java.util.Collection (map #(name %) return-attributes))))]
-       (let [qres (.  (refresh-client client) (query req))]
+       (let [qres (. client (query req))]
          (with-meta (keywordize-keys (map to-map (.getItems qres)))
            {:consumed-capacity-units (.getConsumedCapacityUnits qres) :count (.getCount qres) :last-key (.getLastEvaluatedKey qres)}))))
-  ([client table key consistent range-condition]     
+  ([^AmazonDynamoDBClient client table key consistent range-condition]     
      (find-items client table key consistent range-condition nil))
-  ([client table key consistent]     
+  ([^AmazonDynamoDBClient client table key consistent]     
      (find-items client table key consistent nil nil)))
 
 (defn scan
   "Return the items in a DynamoDB table. Conditions is vector of tuples like [field operator param1 param2] or [field operator param1]. Return-attributes is a vector of attributes to return as in [attr1 attr2]"
-  ([client table conditions return-attributes]  
+  ([^AmazonDynamoDBClient client table conditions return-attributes]  
      (let [conds (loop [c (first conditions) res {}]
                    (if (empty? c)
                      res
@@ -195,10 +206,10 @@
                    (empty? conds) (doto (ScanRequest.) (.withTableName table))
                    (not (empty? conds)) (doto (ScanRequest.) (.withTableName table) (.withScanFilter conds)))
              req (if (empty? return-attributes) reqq (doto reqq (.withAttributesToGet ^java.util.Collection (map #(name %) return-attributes))))]
-         (let [sres (.  (refresh-client client) (scan req))]
+         (let [sres (. client (scan req))]
            (with-meta (keywordize-keys (map to-map (.getItems sres)))
              {:consumed-capacity-units (.getConsumedCapacityUnits sres) :count (.getCount sres) :last-key (.getLastEvaluatedKey sres)})))))
-  ([client table conditions]
+  ([^AmazonDynamoDBClient client table conditions]
      (scan client table conditions nil))
-  ([client table]
+  ([^AmazonDynamoDBClient client table]
      (scan client table nil nil)))

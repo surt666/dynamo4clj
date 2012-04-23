@@ -5,41 +5,59 @@ Clojure API for Amazon DynamoDB
 ## Usage
 
 ### with config files
-Put a file called aws.properties in src (or somewhere else where it ends up in the root of the classpath) with your aws keys in the format:
+Put a file called `aws.properties` in src (or somewhere else where it ends up in the root of the classpath) with your aws keys in the format:
 
-accessKey:blabla
-secretKey:fooooo
+accessKey:blabla    
+secretKey:fooooo    
 
-Optionally put a config.properties file in src with the following optional parameters
+Optionally put a `config.properties` file in src with the following optional parameters
 
-proxy-host=sltarray
-proxy-port=8080
-region=dynamodb.eu-west-1.amazonaws.com
+proxy-host=sltarray   
+proxy-port=8080  
+region=dynamodb.eu-west-1.amazonaws.com  
+protocol=https
 
     (def client (get-client))
 
 
 ### with config map 
 
-(def client (dyn/get-client {:access-key "foo" :secret-key "bar" :proxy-host "example.com" :proxy-port 8080 :region "dynamodb.eu-west-1.amazonaws.com"}))
+    (def client (get-client {:access-key "foo"
+                             :secret-key "bar"
+                             :proxy-host "example.com" 
+                             :proxy-port 8080 
+                             :region "dynamodb.eu-west-1.amazonaws.com"
+                             :protocol "https"}))
 
 ### api-calls 
 
-    (get-item client "seq" "events_seq")
+    (insert-item client "table" {:hash "hash-key" :range "range-key" :foo "bar"})
 
-    (get-batch-items client [["products" [1101001 1101101]] ["prices" [["ys" 1101001] ["kab" 1101201]]]])
+    (get-item client "table" "hash-key")
+    
+    (get-item client "table" "hash-key" "range-key")
 
-    (delete-item client "seq" "events_seq")
+    (get-batch-items client [["table1" [1101001 1101101]] ["table2" [["ys" 1101001] ["kab" 1101201]]]])
 
-    (update-item client "seq" "login_count" {:value [1 "add"]})
+    (delete-item client "table" "hash-key")
+    
+    (delete-item client "table" "hash-key" "range-key")
 
-    (scan client "events")
+    (update-item client "table" "hash-key" {:value [1 "add"]})
+     
+    (update-item client "table" "hash-key" {:value [1 "add"]} "range-key")
 
-    (scan client  "events" [["author" "eq" "steen"]])
+    (scan client "table")
 
-    (find-items client "events" "NORMAL" true)   
+    (scan client  "table" [["author" "eq" "steen"]] [:attr])
 
-    (find-items client "events" "NORMAL" true ["between" 715 815])
+    (find-items client "table" "NORMAL" true)   
+
+    (find-items client "table" "NORMAL" true ["between" 715 815])
+
+    (find-items client "table" "NORMAL" true ["between" 715 815] [:attr1 :attr2])
+
+Return values have meta data containing consumed units, count and lastkey where applicable.
 
 Range and conditions support
 
