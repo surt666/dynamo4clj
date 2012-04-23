@@ -1,42 +1,51 @@
 (ns dynamo4clj.core
   (:use [clojure.algo.generic.functor :only (fmap)]
         [clojure.walk :only (stringify-keys keywordize-keys)])
-  (:import [com.amazonaws.auth AWSCredentials BasicAWSCredentials PropertiesCredentials]
+  (:import [com.amazonaws.auth STSSessionCredentialsProvider AWSCredentials BasicAWSCredentials PropertiesCredentials]
            [com.amazonaws.services.dynamodb AmazonDynamoDBClient]
            [com.amazonaws.services.dynamodb.model AttributeValue AttributeValueUpdate AttributeAction PutItemRequest QueryRequest Key GetItemRequest DeleteItemRequest ScanRequest UpdateItemRequest ReturnValue Condition ComparisonOperator KeysAndAttributes BatchGetItemRequest BatchGetItemResult BatchResponse]
            [com.amazonaws AmazonServiceException ClientConfiguration Protocol]
            [java.util HashMap Properties]))
 
-(defn  get-client
-  (^AmazonDynamoDBClient [] 
-   "Configure client from aws.properties and config.properties"
+(def refresh (* 1000 60 20) ) ; 20 minutes
+
+(defn get-client 
+  ([]
+   "Setup client configuration from aws.properties and config.properties"
    (let [credstream (.getResourceAsStream (clojure.lang.RT/baseLoader) "aws.properties")
          configstream (.getResourceAsStream (clojure.lang.RT/baseLoader) "config.properties") 
-         creds (PropertiesCredentials. credstream)
+         provider (STSSessionCredentialsProvider.  (PropertiesCredentials. credstream))
          config (ClientConfiguration.)
          props (Properties.)]
      (. props (load configstream))
      (. config (setProtocol Protocol/HTTPS))
      (. config (setMaxErrorRetry 3))
      (when-not (nil? (. props (getProperty "proxy-host"))) (. config (setProxyHost (. props (getProperty "proxy-host")))))
-     (when-not (nil? (. props (getProperty "proxy-port"))) (. config (setProxyPort (Integer/parseInt (. props (getProperty "proxy-port"))))))
-     (doto (AmazonDynamoDBClient. creds config) (.setEndpoint (. props (getProperty "region"))))))
-  (^AmazonDynamoDBClient [{:keys [access-key secret-key proxy-host proxy-port region] :as config}]  
-   "Configures a client
-   
+     (when-not (nil? (. props (getProperty "proxy-port"))) (. config (setProxyPort (Integer/parseInt (. props (getProperty "proxy-port")))))) 
+     (atom  {:session-provider provider :time (System/currentTimeMillis)  :client (doto (AmazonDynamoDBClient. session-provider config) (.setEndpoint (. props (getProperty "region"))))})))
+  ([{:keys [access-key secret-key proxy-host proxy-port region] :as configuration}]  
+   "Setup client configuration
+
    :access-key mandatory 
    :secret-key mandatory 
    :region mandatory (ex. for europe dynamodb.eu-west-1.amazonaws.com )  
    :proxy-host optional 
    :proxy-port integer  optional 
    "
-   (let [creds (BasicAWSCredentials. access-key secret-key) 
-         config (ClientConfiguration.)]
+   (let [config (ClientConfiguration.)]
      (. config (setProtocol Protocol/HTTPS))  
      (. config (setMaxErrorRetry 3)) 
      (when proxy-host (. config (setProxyHost proxy-host )))
      (when (number? proxy-port) (. config (setProxyPort proxy-port)))
-     (doto (AmazonDynamoDBClient. creds config) (.setEndpoint region )))))
+     (atom  {:session-provider (STSSessionCredentialsProvider.  (BasicAWSCredentials. access-key secret-key) config) :time (System/currentTimeMillis)  :client (doto (AmazonDynamoDBClient. session-provider config) (.setEndpoint (. props (getProperty "region"))))}))))
+
+(defn ^AmazonDynamoDBClient refresh-client [client-atom]
+  (let [{:keys [client time session-provider] :as client-map} @client-atom
+        now (System/currentTimeMillis)]
+    (when (> now (+ time refresh)) 
+      (.refresh ^STSSessionCredentialsProvider session-provider) 
+      (swap! client-atom #(assoc % :time now )))
+    client))
 
 ;
 ;
