@@ -7,7 +7,7 @@
            [com.amazonaws AmazonServiceException ClientConfiguration Protocol]
            [java.util HashMap Properties]))
 
-(def refresh (* 1000 60 20) ) ; 20 minutes
+(def refresh (* 1000 60 40)) ; 40 minutes
 
 (defn get-client 
   ([]
@@ -15,14 +15,18 @@
    (let [credstream (.getResourceAsStream (clojure.lang.RT/baseLoader) "aws.properties")
          configstream (.getResourceAsStream (clojure.lang.RT/baseLoader) "config.properties") 
          config (ClientConfiguration.)
+         provider-config (ClientConfiguration.)
          props (Properties.)]
      (. props (load configstream))
-     (if (= (. props (getProperty "protocol")) "https") (. config (setProtocol Protocol/HTTPS)) (. config (setProtocol Protocol/HTTP)))     
      (. config (setMaxErrorRetry 3))
-     (when-not (nil? (. props (getProperty "proxy-host"))) (. config (setProxyHost (. props (getProperty "proxy-host")))))
-     (when-not (nil? (. props (getProperty "proxy-port"))) (. config (setProxyPort (Integer/parseInt (. props (getProperty "proxy-port")))))) 
-     (let [provider (STSSessionCredentialsProvider.  (PropertiesCredentials. credstream) config) ]
-       (atom  {:session-provider provider :time (System/currentTimeMillis)  :client (doto (AmazonDynamoDBClient. provider config) (.setEndpoint (. props (getProperty "region"))))}))))
+     (. provider-config (setMaxErrorRetry 3))
+     (. provider-config (setProtocol Protocol/HTTPS)) ; provider-config must use https
+     (when-not (nil? (. props (getProperty "proxy-host"))) (. config (setProxyHost (. props (getProperty "proxy-host"))))(. provider-config (setProxyHost (. props (getProperty "proxy-host")))))
+     (when-not (nil? (. props (getProperty "proxy-port"))) (. config (setProxyPort (Integer/parseInt (. props (getProperty "proxy-port")))))(. provider-config (setProxyPort (Integer/parseInt (. props (getProperty "proxy-port"))))) ) 
+     (if (= (. props (getProperty "protocol")) "https") (. config (setProtocol Protocol/HTTPS)) (. config (setProtocol Protocol/HTTP)))     
+     (let [provider (STSSessionCredentialsProvider.  (PropertiesCredentials. credstream) provider-config)
+           client-map  {:session-provider provider :time (System/currentTimeMillis)  :client (doto (AmazonDynamoDBClient. provider config) (.setEndpoint (. props (getProperty "region"))))}]
+       (atom client-map ))))
 
   ([{:keys [access-key secret-key proxy-host proxy-port protocol region] :as configuration}]  
    "Configures a client
@@ -33,20 +37,24 @@
    :proxy-port integer  optional
    :protocol http|https optional
    "
-   (let [config (ClientConfiguration.)]
+   (let [config (ClientConfiguration.)
+         provider-config (ClientConfiguration.)]
      (if (= protocol "https") (. config (setProtocol Protocol/HTTPS)) (. config (setProtocol Protocol/HTTP)))  
      (. config (setMaxErrorRetry 3)) 
-     (when proxy-host (. config (setProxyHost proxy-host )))
-     (when (number? proxy-port) (. config (setProxyPort proxy-port)))
-     (let [provider (STSSessionCredentialsProvider. (BasicAWSCredentials. access-key secret-key) config)  ]
-       (atom  {:session-provider provider
-               :time (System/currentTimeMillis)  
-               :client (doto (AmazonDynamoDBClient. provider config) (.setEndpoint region))})))))
+     (. provider-config (setProtocol Protocol/HTTPS)) ; provider-config must use https
+     (. provider-config (setMaxErrorRetry 3)) 
+     (when proxy-host (. config (setProxyHost proxy-host ))(. provider-config (setProxyHost proxy-host )))
+     (when (number? proxy-port) (. config (setProxyPort proxy-port))(. provider-config (setProxyPort proxy-port)))
+     (let [provider (STSSessionCredentialsProvider. (BasicAWSCredentials. access-key secret-key) provider-config)
+           client-map  {:session-provider provider
+                        :time (System/currentTimeMillis)  
+                        :client (doto (AmazonDynamoDBClient. provider config) (.setEndpoint region))}]
+       (atom client-map )))))
 
 (defn- ^AmazonDynamoDBClient refresh-client [client-atom]
   (let [{:keys [client time session-provider] :as client-map} @client-atom
         now (System/currentTimeMillis)]
-    (when (> now (+ time refresh)) 
+    (when (> now (+ time refresh))
       (.refresh ^STSSessionCredentialsProvider session-provider) 
       (swap! client-atom #(assoc % :time now )))
     client))
