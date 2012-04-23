@@ -104,8 +104,9 @@
 (defn get-item [client table hash-key & [range-key]]
   "Retrieve an item from a table by its hash key."
   (let [key (if range (item-key-range hash-key range-key) (item-key hash-key))
-        ires (. (refresh-client client) (getItem (doto (GetItemRequest.) (.withTableName table) (.withKey key))))]
-    (with-meta (keywordize-keys (to-map (.getItem ires))) {:consumed-capacity-units (.getConsumedCapacityUnits ires)})))
+        ires (. (refresh-client client) (getItem (doto (GetItemRequest.) (.withTableName table) (.withKey key))))
+        item (keywordize-keys (to-map (.getItem ires)))]
+    (when item  (with-meta item {:consumed-capacity-units (.getConsumedCapacityUnits ires)}))))
 
 (defn- create-keys-and-attributes [keys] 
   (let [ka (KeysAndAttributes.)]
