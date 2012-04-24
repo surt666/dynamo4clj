@@ -246,7 +246,9 @@
     batch-result))
 
 (defn batch-write [client write-map]
+  "write in batch with the form {:table1 [{:id \"foo1\" :key \"bar1\"} {:id \"foo2\" :key \"bar2\"}] :table2 [{:id2 \"foo1\" :key2 \"bar1\"} {:id2 \"foo2\" :key2 \"bar2\"}]}"
   (batch-del-write client write-map "w"))
 
 (defn batch-delete [client delete-map]
+  "delete in batch with the form {:table1 [\"hash1\" \"hash2\"] :table2 [[\"hash1\" \"range1\"] [\"hash2\" \"range2\"]]}"
   (batch-del-write client delete-map "d"))
