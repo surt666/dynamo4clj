@@ -3,7 +3,7 @@
         [clojure.walk :only (stringify-keys keywordize-keys)])
   (:import [com.amazonaws.auth AWSCredentials BasicAWSCredentials PropertiesCredentials]
            [com.amazonaws.services.dynamodb AmazonDynamoDBClient]
-           [com.amazonaws.services.dynamodb.model AttributeValue AttributeValueUpdate AttributeAction PutItemRequest QueryRequest Key GetItemRequest DeleteItemRequest ScanRequest UpdateItemRequest ReturnValue Condition ComparisonOperator KeysAndAttributes BatchGetItemRequest BatchGetItemResult BatchResponse]
+           [com.amazonaws.services.dynamodb.model AttributeValue AttributeValueUpdate AttributeAction PutItemRequest QueryRequest Key GetItemRequest DeleteItemRequest ScanRequest UpdateItemRequest ReturnValue Condition ComparisonOperator KeysAndAttributes BatchGetItemRequest BatchGetItemResult BatchResponse BatchWriteItemRequest WriteRequest PutRequest DeleteRequest]
            [com.amazonaws AmazonServiceException ClientConfiguration Protocol]
            [java.util HashMap Properties]))
 
@@ -190,3 +190,42 @@
      (scan client table conditions nil))
   ([^AmazonDynamoDBClient client table]
      (scan client table nil nil)))
+
+(defn- map2attrmap [m]
+  (reduce merge {} (map #(into {} {(name %) (to-attr-value (m %))}) (keys m))))
+
+(defn- list2keylist [l]
+  (map #(if (vector? %) (apply item-key-range %) (item-key %)) l))
+
+(defn- tableattrmaptransform [tm]
+  (loop [k (keys tm) res {}]
+    (if (empty? k)
+      res
+      (recur (rest k) (assoc res (name (first k)) (map #(map2attrmap %) (tm (first k))))))))
+
+(defn- tablekeymaptransform [tm]
+  (loop [k (keys tm) res {}]
+    (if (empty? k)
+      res
+      (recur (rest k) (assoc res (name (first k)) (list2keylist (tm (first k))))))))
+
+(defn batch-del-write [^AmazonDynamoDBClient client m type]
+  (let [ntm (if (= type "w") (tableattrmaptransform m) (tablekeymaptransform m))                
+        wreq (if (= type "w")
+               (loop [k (keys ntm) res {}]
+                 (if (empty? k)
+                   res
+                   (recur (rest k) (assoc res (first k) (map #(doto (WriteRequest.) (.withPutRequest (doto (PutRequest.) (.withItem %)))) (get ntm (first k)))))))
+               (loop [k (keys ntm) res {}]
+                 (if (empty? k)
+                   res
+                   (recur (rest k) (assoc res (first k) (map #(doto (WriteRequest.) (.withDeleteRequest (doto (DeleteRequest.) (.withKey %)))) (get ntm (first k))))))))
+        bireq (doto (BatchWriteItemRequest.) (.withRequestItems wreq))
+        batch-result (. client (batchWriteItem bireq))]
+    batch-result))
+
+(defn batch-write [client write-map]
+  (batch-del-write client write-map "w"))
+
+(defn batch-delete [client delete-map]
+  (batch-del-write client delete-map "d"))
