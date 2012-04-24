@@ -37,7 +37,7 @@ protocol=https
     
     (get-item client "table" "hash-key" "range-key")
 
-    (get-batch-items client [["table1" [1101001 1101101]] ["table2" [["ys" 1101001] ["kab" 1101201]]]])
+    (get-batch-items client [[table1 [hash1 hash3]] [table2 [[hash1 range1] [hash4 range4]]]])
 
     (delete-item client "table" "hash-key")
     

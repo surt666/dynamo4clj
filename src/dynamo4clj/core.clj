@@ -243,7 +243,7 @@
                    (recur (rest k) (assoc res (first k) (map #(doto (WriteRequest.) (.withDeleteRequest (doto (DeleteRequest.) (.withKey %)))) (get ntm (first k))))))))
         bireq (doto (BatchWriteItemRequest.) (.withRequestItems wreq))
         batch-result (. client (batchWriteItem bireq))]
-    batch-result))
+    batch-result)) ;;TODO add meta data for responses
 
 (defn batch-write [client write-map]
   "write in batch with the form {:table1 [{:id \"foo1\" :key \"bar1\"} {:id \"foo2\" :key \"bar2\"}] :table2 [{:id2 \"foo1\" :key2 \"bar1\"} {:id2 \"foo2\" :key2 \"bar2\"}]}"
