@@ -3,7 +3,7 @@
         [clojure.walk :only (stringify-keys keywordize-keys)])
   (:import [com.amazonaws.auth STSSessionCredentialsProvider AWSCredentials BasicAWSCredentials PropertiesCredentials]
            [com.amazonaws.services.dynamodb AmazonDynamoDBClient]
-           [com.amazonaws.services.dynamodb.model AttributeValue AttributeValueUpdate AttributeAction PutItemRequest QueryRequest Key GetItemRequest DeleteItemRequest ScanRequest UpdateItemRequest ReturnValue Condition ComparisonOperator KeysAndAttributes BatchGetItemRequest BatchGetItemResult BatchResponse BatchWriteItemRequest WriteRequest PutRequest DeleteRequest]
+           [com.amazonaws.services.dynamodb.model AttributeValue AttributeValueUpdate AttributeAction PutItemRequest QueryRequest Key GetItemRequest DeleteItemRequest ScanRequest UpdateItemRequest ReturnValue Condition ComparisonOperator KeysAndAttributes BatchGetItemRequest BatchGetItemResult BatchResponse BatchWriteItemRequest WriteRequest PutRequest DeleteRequest BatchWriteResponse]
            [com.amazonaws AmazonServiceException ClientConfiguration Protocol]
            [java.util HashMap Properties]))
 
@@ -242,8 +242,14 @@
                    res
                    (recur (rest k) (assoc res (first k) (map #(doto (WriteRequest.) (.withDeleteRequest (doto (DeleteRequest.) (.withKey %)))) (get ntm (first k))))))))
         bireq (doto (BatchWriteItemRequest.) (.withRequestItems wreq))
-        batch-result (. client (batchWriteItem bireq))]
-    batch-result)) ;;TODO add meta data for responses
+        batchresult (. client (batchWriteItem bireq))
+        tables (keys wreq)]    
+    (loop [t tables res {}]
+      (if (empty? t)
+        (keywordize-keys res)
+        (recur (rest t) (let [^BatchWriteResponse bres (. (. batchresult getResponses) (get (first t)))]
+                          (assoc res (first t) 
+                                 {:consumed-capacity-units (.getConsumedCapacityUnits bres)})))))))
 
 (defn batch-write [client write-map]
   "write in batch with the form {:table1 [{:id \"foo1\" :key \"bar1\"} {:id \"foo2\" :key \"bar2\"}] :table2 [{:id2 \"foo1\" :key2 \"bar1\"} {:id2 \"foo2\" :key2 \"bar2\"}]}"
