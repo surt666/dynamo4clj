@@ -130,7 +130,7 @@
         (keywordize-keys res)
         (recur (rest t) (let [^BatchResponse bres (. (. batchresult getResponses) (get (first t)))]
                           (assoc res (first t) (with-meta (vec (map to-map (.getItems bres)))
-                                                 {:consumed-capacity-units (.getConsumedCapacityUnits bres)}))))))))
+                                                 {:consumed-capacity-units (.getConsumedCapacityUnits bres) :unprocessed-keys (str (. batchresult getUnprocessedKeys))}))))))))
 
 ;;TODO specify returnvalues for all calls
 
@@ -249,7 +249,7 @@
         (keywordize-keys res)
         (recur (rest t) (let [^BatchWriteResponse bres (. (. batchresult getResponses) (get (first t)))]
                           (assoc res (first t) 
-                                 {:consumed-capacity-units (.getConsumedCapacityUnits bres)})))))))
+                                 {:consumed-capacity-units (.getConsumedCapacityUnits bres) :unprocessed-items (str (. batchresult getUnprocessedItems))})))))))
 
 (defn batch-write [client write-map]
   "write in batch with the form {:table1 [{:id \"foo1\" :key \"bar1\"} {:id \"foo2\" :key \"bar2\"}] :table2 [{:id2 \"foo1\" :key2 \"bar1\"} {:id2 \"foo2\" :key2 \"bar2\"}]}"
