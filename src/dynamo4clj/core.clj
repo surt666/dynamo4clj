@@ -9,7 +9,7 @@
 
 (def refresh (* 1000 60 40)) ; 40 minutes
 
-(defn get-client 
+(defn ^AmazonDynamoDBClient get-client 
   ([]
    "Configures a client from aws.properties and config.properties"
    (let [credstream (.getResourceAsStream (clojure.lang.RT/baseLoader) "aws.properties")
@@ -26,7 +26,7 @@
      (if (= (. props (getProperty "protocol")) "https") (. config (setProtocol Protocol/HTTPS)) (. config (setProtocol Protocol/HTTP)))     
      (let [provider (STSSessionCredentialsProvider.  (PropertiesCredentials. credstream) provider-config)
            client-map  {:session-provider provider :time (System/currentTimeMillis)  :client (doto (AmazonDynamoDBClient. provider config) (.setEndpoint (. props (getProperty "region"))))}]
-       (atom client-map ))))
+       (atom client-map))))
 
   ([{:keys [access-key secret-key proxy-host proxy-port protocol region] :as configuration}]  
    "Configures a client
@@ -49,7 +49,7 @@
            client-map  {:session-provider provider
                         :time (System/currentTimeMillis)  
                         :client (doto (AmazonDynamoDBClient. provider config) (.setEndpoint region))}]
-       (atom client-map )))))
+       (atom client-map)))))
 
 (defn- ^AmazonDynamoDBClient refresh-client [client-atom]
   (let [{:keys [client time session-provider] :as client-map} @client-atom
@@ -230,7 +230,7 @@
       res
       (recur (rest k) (assoc res (name (first k)) (list2keylist (tm (first k))))))))
 
-(defn batch-del-write [^AmazonDynamoDBClient client m type]
+(defn batch-del-write [client m type]
   (let [ntm (if (= type "w") (tableattrmaptransform m) (tablekeymaptransform m))                
         wreq (if (= type "w")
                (loop [k (keys ntm) res {}]
@@ -242,7 +242,7 @@
                    res
                    (recur (rest k) (assoc res (first k) (map #(doto (WriteRequest.) (.withDeleteRequest (doto (DeleteRequest.) (.withKey %)))) (get ntm (first k))))))))
         bireq (doto (BatchWriteItemRequest.) (.withRequestItems wreq))
-        batchresult (. client (batchWriteItem bireq))
+        batchresult (. (refresh-client client) (batchWriteItem bireq))
         tables (keys wreq)]    
     (loop [t tables res {}]
       (if (empty? t)
