@@ -230,6 +230,32 @@
       res
       (recur (rest k) (assoc res (name (first k)) (list2keylist (tm (first k))))))))
 
+(defn- writerequests2map [wl]
+  (loop [l wl res {}]
+    (if (empty? l)
+      res
+      (recur (rest l) (assoc res (let [i (.getItem (.getPutRequest (first l)))]                                   
+                                   (keyword (first (keys i))) (str (first (vals i)))))))))
+
+(defn- writerequests2list [wl]
+  (loop [l wl res []]
+    (if (empty? l)
+      res
+      (recur (rest l) (conj res (let [k (.getKey (.getDeleteRequest (first l)))]                                   
+                                  (vec (str (.getHashKeyElement k)) (str (.getRangeKeyElement k)))))))))
+
+(defn- unprocesseditems2map [unprocessed]  
+  (loop [u (keys unprocessed) res {}]
+    (if (empty? u)
+      res
+      (recur (rest u) (assoc res (keyword (first u)) (writerequests2map (get unprocessed (first u))))))))
+
+(defn- unprocessedkeys2map [unprocessed]  
+  (loop [u (keys unprocessed) res {}]
+    (if (empty? u)
+      res
+      (recur (rest u) (assoc res (keyword (first u)) (writerequests2list (get unprocessed (first u))))))))
+
 (defn batch-del-write [client m type]
   (let [ntm (if (= type "w") (tableattrmaptransform m) (tablekeymaptransform m))                
         wreq (if (= type "w")
@@ -249,7 +275,7 @@
         (keywordize-keys res)
         (recur (rest t) (let [^BatchWriteResponse bres (. (. batchresult getResponses) (get (first t)))]
                           (assoc res (first t) 
-                                 {:consumed-capacity-units (.getConsumedCapacityUnits bres) :unprocessed-items (str (. batchresult getUnprocessedItems))})))))))
+                                 {:consumed-capacity-units (.getConsumedCapacityUnits bres) :unprocessed-items (str (if (= type "w") (unprocesseditems2map (.getUnprocessedItems batchresult)) (unprocessedkeys2map (.getUnprocessedKeys batchresult))))})))))))
 
 (defn batch-write [client write-map]
   "write in batch with the form {:table1 [{:id \"foo1\" :key \"bar1\"} {:id \"foo2\" :key \"bar2\"}] :table2 [{:id2 \"foo1\" :key2 \"bar1\"} {:id2 \"foo2\" :key2 \"bar2\"}]}"
