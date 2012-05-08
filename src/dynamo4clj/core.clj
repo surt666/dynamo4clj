@@ -234,8 +234,9 @@
   (loop [l wl res {}]
     (if (empty? l)
       res
-      (recur (rest l) (assoc res (let [i (.getItem (.getPutRequest (first l)))]                                   
-                                   (keyword (first (keys i))) (str (first (vals i)))))))))
+      (recur (rest l) (merge res (let [i (.getItem (.getPutRequest (first l)))]
+                                   ;;(prn "I" (keys i))
+                                   {(keyword (keys i)) (str (vals i))})))))) ;;TODO fix
 
 (defn- writerequests2list [wl]
   (loop [l wl res []]
@@ -275,7 +276,9 @@
         (keywordize-keys res)
         (recur (rest t) (let [^BatchWriteResponse bres (. (. batchresult getResponses) (get (first t)))]
                           (assoc res (first t) 
-                                 {:consumed-capacity-units (.getConsumedCapacityUnits bres) :unprocessed-items (str (if (= type "w") (unprocesseditems2map (.getUnprocessedItems batchresult)) (unprocessedkeys2map (.getUnprocessedKeys batchresult))))})))))))
+                                 {:consumed-capacity-units (.getConsumedCapacityUnits bres)
+                                  :unprocessed-items (if (= type "w")                                                                                                      (when (not (nil? (.getUnprocessedItems batchresult))) (unprocesseditems2map (.getUnprocessedItems batchresult)))
+                                                        (when (not (nil? (.getUnprocessedKeys batchresult))) (unprocessedkeys2map (.getUnprocessedKeys batchresult))))})))))))
 
 (defn batch-write [client write-map]
   "write in batch with the form {:table1 [{:id \"foo1\" :key \"bar1\"} {:id \"foo2\" :key \"bar2\"}] :table2 [{:id2 \"foo1\" :key2 \"bar1\"} {:id2 \"foo2\" :key2 \"bar2\"}]}"
