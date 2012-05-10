@@ -178,20 +178,35 @@
      (= operator "in") (doto (Condition.) (.withComparisonOperator ComparisonOperator/IN) (.withAttributeValueList ^java.util.List (vector (to-attr-value param1)))))))
 
 (defn find-items
-  "Find items with key and optional range. Range has the form [operator param1 param2] or [operator param1], and return-attributes is a vector of attributes to return as in [attr1 attr2]"
-  ([client table key consistent range-condition return-attributes]                    
+  "Find items with key and optional range.
+   Consistent is true or false
+   Range has the form [operator param1 param2] or [operator param1].
+   Return-attributes is a vector of attributes to return as in [attr1 attr2]
+   Scan-forward is true false. True is ascending and default
+   Limit is the number of results returned
+   Startkey is the place to start if a query couldn't return all results in the first go"
+  ([client table key consistent range-condition return-attributes scan-forward limit startkey]                    
      (let [condition (create-condition range-condition)       
-           reqq (cond
+           req1 (cond
                  (empty? range-condition) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withConsistentRead consistent))
                  (not (empty? range-condition)) (doto (QueryRequest.) (.withTableName table) (.withHashKeyValue (to-attr-value key)) (.withRangeKeyCondition condition) (.withConsistentRead consistent)))
-           req (if (empty? return-attributes) reqq (doto reqq (.withAttributesToGet ^java.util.Collection (map #(name %) return-attributes))))]
+           req2 (if (empty? return-attributes) req1 (doto req1 (.withAttributesToGet ^java.util.Collection (map #(name %) return-attributes))))
+           req3 (if (nil? scan-forward) req2 (doto req2 (.withScanIndexForward scan-forward)))
+           req4 (if (nil? limit) req3 (doto req3 (.withLimit (int limit))))
+           req (if (nil? startkey) req4 (doto req4 (.withExclusiveStartkey (if (vector? startkey) (item-key-range (get startkey 0) (get startkey 1)) (item-key startkey)))))]
        (let [qres (.  (refresh-client client) (query req))]
          (with-meta (keywordize-keys (map to-map (.getItems qres)))
            {:consumed-capacity-units (.getConsumedCapacityUnits qres) :count (.getCount qres) :last-key (.getLastEvaluatedKey qres)}))))
+  ([client table key consistent range-condition return-attributes scan-forward limit]     
+     (find-items client table key consistent range-condition return-attributes scan-forward limit nil))
+  ([client table key consistent range-condition return-attributes scan-forward]     
+     (find-items client table key consistent range-condition return-attributes scan-forward nil nil))
+  ([client table key consistent range-condition return-attributes]     
+     (find-items client table key consistent range-condition return-attributes nil nil nil))
   ([client table key consistent range-condition]     
-     (find-items client table key consistent range-condition nil))
+     (find-items client table key consistent range-condition nil nil nil nil))
   ([client table key consistent]     
-     (find-items client table key consistent nil nil)))
+     (find-items client table key consistent nil nil nil nil nil)))
 
 (defn scan
   "Return the items in a DynamoDB table. Conditions is vector of tuples like [field operator param1 param2] or [field operator param1]. Return-attributes is a vector of attributes to return as in [attr1 attr2]"
