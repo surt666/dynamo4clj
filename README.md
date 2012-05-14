@@ -45,25 +45,25 @@ protocol=https
 
     (update-item client "table" "hash-key" {:value [1 "add"]})
      
-    (update-item client "table" "hash-key" {:value [1 "add"]} "range-key")
+    (update-item client "table" ["hash-key" "range-key"] {:value [1 "add"]})
 
     (scan client "table")
 
     (scan client  "table" [["author" "eq" "steen"]] [:attr])
 
-    (find-items client "table" "NORMAL" true)   
+    (find-items client "table" "hash-key" true)   
 
-    (find-items client "table" "NORMAL" true ["between" 715 815])
+    (find-items client "table" "hash-key" true ["between" 715 815])
 
-    (find-items client "table" "NORMAL" true ["between" 715 815] [:attr1 :attr2])
+    (find-items client "table" "hash-key" true ["between" 715 815] [:attr1 :attr2])
     
-    (find-items client "table" "NORMAL" true ["between" 715 815] [:attr1 :attr2] false)
+    (find-items client "table" "hash-key" true ["between" 715 815] [:attr1 :attr2] false)
     
-    (find-items client "table" "NORMAL" true ["between" 715 815] [:attr1 :attr2] false 1)
+    (find-items client "table" "hash-key" true ["between" 715 815] [:attr1 :attr2] false 1)
     
-    (find-items client "table" "NORMAL" true ["between" 715 815] [:attr1 :attr2] false 1 "hash")
+    (find-items client "table" "hash-key" true ["between" 715 815] [:attr1 :attr2] false 1 "hash")
     
-    (find-items client "table" "NORMAL" true ["between" 715 815] [:attr1 :attr2] false 1 ["hash" "range"])
+    (find-items client "table" "hash-key" true ["between" 715 815] [:attr1 :attr2] false 1 ["hash" "range"])
     
     (batch-write client {:table1 [{:id \"foo1\" :key \"bar1\"} {:id \"foo2\" :key \"bar2\"}] :table2 [{:id2 \"foo1\" :key2 \"bar1\"} {:id2 \"foo2\" :key2 \"bar2\"}]})
     

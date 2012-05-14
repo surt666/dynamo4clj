@@ -152,9 +152,10 @@
     (with-meta (if attr (keywordize-keys (to-map attr)) {}) {:consumed-capacity-units (.getConsumedCapacityUnits pres)})))
 
 
-(defn update-item [client table hash-key attr & [range-key]]
-  "Update item (map) in table with optional attributes"
-  (let [key (if range-key (item-key-range hash-key range-key) (item-key hash-key))
+(defn update-item [client table key attr]
+  "Update item (map) in table with optional attributes. 
+   Key is either a string (hashkey), or a tuple [hashkey rangekey]"
+  (let [key (if (vector? key) (item-key-range (get key 0) (get key 1)) (item-key key))
         attrupd (fmap to-attr-value-update (stringify-keys attr))
         req (doto (UpdateItemRequest.) (.withTableName table) (.withKey key) (.withReturnValues ReturnValue/ALL_NEW) (.withAttributeUpdates attrupd))
         ures (.  (refresh-client client) (updateItem req))]
