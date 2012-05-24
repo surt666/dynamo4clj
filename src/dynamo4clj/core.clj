@@ -258,7 +258,7 @@
   (loop [l wl res []]
     (if (empty? l)
       res
-      (recur (rest l) (conj res (let [k (.getKey (.getDeleteRequest (first l)))]                                   
+      (recur (rest l) (conj res (let [k (.getKey (.getDeleteRequest (first l)))] 
                                   (vec (str (.getHashKeyElement k)) (str (.getRangeKeyElement k)))))))))
 
 (defn- unprocesseditems2map [unprocessed]  
@@ -272,6 +272,12 @@
     (if (empty? u)
       res
       (recur (rest u) (assoc res (keyword (first u)) (writerequests2list (get unprocessed (first u))))))))
+
+(defn merge-results [map1 map2]
+  (loop [k (keys map1) res {}]
+    (if (empty? k)
+      res
+      (recur (rest k) (assoc res (first k) (merge (get map1 (first k)) (get map2 (first k))))))))
 
 (defn batch-del-write [client m type]
   (let [ntm (if (= type "w") (tableattrmaptransform m) (tablekeymaptransform m))                
@@ -287,14 +293,16 @@
         bireq (doto (BatchWriteItemRequest.) (.withRequestItems wreq))
         batchresult (. (refresh-client client) (batchWriteItem bireq))
         tables (keys wreq)]    
-    (loop [t tables res {}]
+    (loop [t tables res1 {} res2 {}]
       (if (empty? t)
-        (keywordize-keys res)
-        (recur (rest t) (let [^BatchWriteResponse bres (. (. batchresult getResponses) (get (first t)))]
-                          (assoc res (first t) 
-                                 {:consumed-capacity-units (.getConsumedCapacityUnits bres)
-                                  :unprocessed-items (if (= type "w")                                                                                                      (when (not (nil? (.getUnprocessedItems batchresult))) (unprocesseditems2map (.getUnprocessedItems batchresult)))
-                                                        (when (not (nil? (.getUnprocessedKeys batchresult))) (unprocessedkeys2map (.getUnprocessedKeys batchresult))))})))))))
+        (keywordize-keys (merge-results res1 res2))
+        (recur (rest t)
+               (let [^BatchWriteResponse bres (. (. batchresult getResponses) (get (first t)))]
+                 (assoc res1 (first t) {:consumed-capacity-units (if-not (nil? bres) (.getConsumedCapacityUnits bres) 0)}))
+               (let [^BatchWriteResponse bres (. (. batchresult getResponses) (get (first t)))]
+                 (assoc res2 (first t) {:unprocessed-items (if (= type "w")
+                                                            (when-not (nil? (.getUnprocessedItems batchresult)) ((unprocesseditems2map (.getUnprocessedItems batchresult)) (keyword (first t))))
+                                                            (when-not (nil? (.getUnprocessedKeys batchresult)) ((unprocessedkeys2map (.getUnprocessedKeys batchresult)) (keyword (first t)))))})))))))
 
 (defn batch-write [client write-map]
   "write in batch with the form {:table1 [{:id \"foo1\" :key \"bar1\"} {:id \"foo2\" :key \"bar2\"}] :table2 [{:id2 \"foo1\" :key2 \"bar1\"} {:id2 \"foo2\" :key2 \"bar2\"}]}"
